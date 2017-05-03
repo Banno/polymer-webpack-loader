@@ -1,0 +1,24 @@
+{
+  "name": "component-loader",
+  "version": "0.0.1",
+  "description": "WebPack Loader for Web Components",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Banno/component-loader.git"
+  },
+  "author": "bryandcoulter@gmail.com",
+  "license": "Apache-2.0",
+  "bugs": {
+    "url": "https://github.com/Banno/component-loader/issues"
+  },
+  "homepage": "https://github.com/Banno/component-loader#readme",
+  "dependencies": {
+    "html-minifier": "^3.4.3",
+    "parse5": "^3.0.2",
+    "webpack": "^2.4.1"
+  }
+}
