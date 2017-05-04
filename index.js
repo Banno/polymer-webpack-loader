@@ -32,8 +32,7 @@ class ProcessHtml {
           let path = src[0].value;
           if (path.indexOf('./') < 0) {
             path = './' + path;
-          }
-          console.log(path);
+          }          
           this.processedImports += `\nimport './${path}';\n`;
         } else {
           this.processedJs += `\n${parse5.serialize(childNode)}\n`;
@@ -42,8 +41,8 @@ class ProcessHtml {
       }
     });
     const minimized = minify(parse5.serialize(domModuleNode.parentNode), { collapseWhitespace: true, conservativeCollapse: true, minifyCSS: true });
-    this.processedHtml += '\nRegisterImport.__webpack_register_html_import(\'' + minimized + '\');\n';
-    this.processedImports += '\const RegisterImport = require(\'./register-import\');\n';    
+    this.processedHtml += '\nRegisterImport.__webpack_register_html_import(\'' + minimized.replace(/'/g, "\\'") + '\');\n';
+    this.processedImports += '\nconst RegisterImport = require(\'./register-import\');\n';    
   }
 
   processLink(linkNode) {
