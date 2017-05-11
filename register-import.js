@@ -1,7 +1,7 @@
 'use strict';
 class RegisterImport {
   constructor() {}
-  __webpack_register_html_import(val) {
+  register(val) {
     const template = document.createElement('template');
     template.innerHTML = val;
     const node = template.content;

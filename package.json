@@ -18,6 +18,7 @@
   "homepage": "https://github.com/Banno/component-loader#readme",
   "dependencies": {
     "html-minifier": "^3.4.3",
+    "loader-utils": "^1.1.0",
     "parse5": "^3.0.2",
     "webpack": "^2.4.1"
   }

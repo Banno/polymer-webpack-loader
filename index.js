@@ -1,9 +1,12 @@
 'use strict';
 const parse5 = require('parse5');
+const loaderUtils = require('loader-utils');
 const minify = require('html-minifier').minify;
 
 class ProcessHtml {
-  constructor() {
+  constructor(loader) {
+    this.loader = loader;
+    this.options = loaderUtils.getOptions(loader) || {};
     this.processedJs = '';
     this.processedImports = '';
     this.processedHtml = '';
@@ -15,6 +18,8 @@ class ProcessHtml {
         this.parseDomModuleNode(childNode);
       } else if (childNode.tagName === 'link') {
         this.processLink(childNode);
+      } else if (childNode.tagName === 'script') {
+        this.processedJs += `\n${parse5.serialize(childNode)}\n`;
       } else {
         this.parseChildNode(childNode);
       }
@@ -31,9 +36,9 @@ class ProcessHtml {
         if (src[0]) {
           let path = src[0].value;
           if (path.indexOf('./') < 0) {
-            path = './' + path;
-          }          
-          this.processedImports += `\nimport './${path}';\n`;
+            path = loaderUtils.urlToRequest(src[0].value);
+          }
+          this.processedImports += `\nimport '${path}';\n`;
         } else {
           this.processedJs += `\n${parse5.serialize(childNode)}\n`;
         }
@@ -41,7 +46,7 @@ class ProcessHtml {
       }
     });
     const minimized = minify(parse5.serialize(domModuleNode.parentNode), { collapseWhitespace: true, conservativeCollapse: true, minifyCSS: true });
-    this.processedHtml += '\nRegisterImport.__webpack_register_html_import(\'' + minimized.replace(/'/g, "\\'") + '\');\n';
+    this.processedHtml += '\nRegisterImport.register(\'' + minimized.replace(/'/g, "\\'") + '\');\n';
     this.processedImports += '\nconst RegisterImport = require(\'./register-import\');\n';    
   }
 
@@ -49,16 +54,28 @@ class ProcessHtml {
     const href = linkNode.attrs.filter((attr) => {
       return attr.name === 'href';
     });
-    if (href[0].value.indexOf('polymer.html') < 0) {
-      this.processedImports += `\nimport '${href[0].value}';\n`;
+    const ignoreLinks = this.options.ignoreLinks || [];
+    const modules = this.options.modules || [];
+    let path = href[0].value || '';
+    const checkModules = modules.filter((module) => {
+      return path.indexOf(module) >= 0;
+    });
+    if (checkModules.length === 0) {
+      if (path.indexOf('./') < 0) {
+        path = loaderUtils.urlToRequest(href[0].value);
+      } else {
+        path = loaderUtils.urlToRequest(loaderUtils.urlToRequest(href[0].value, '~'));
+      }
+    }
+    if (ignoreLinks.indexOf(path) < 0) {
+      this.processedImports += `\nimport '${path}';\n`;
     }
   }
-
 }
 
-module.exports = (content) => {
+module.exports = function(content) {
   const parsed = parse5.parse(content);
-  const processHtml = new ProcessHtml();
+  const processHtml = new ProcessHtml(this);
   processHtml.parseChildNode(parsed);
   return processHtml.processedImports + processHtml.processedHtml + processHtml.processedJs;
 };
