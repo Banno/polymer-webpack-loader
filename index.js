@@ -2,80 +2,89 @@
 const parse5 = require('parse5');
 const loaderUtils = require('loader-utils');
 const minify = require('html-minifier').minify;
+const parse5Utils = require('parse5-utils');
 
 class ProcessHtml {
-  constructor(loader) {
-    this.loader = loader;
-    this.options = loaderUtils.getOptions(loader) || {};
-    this.processedJs = '';
-    this.processedImports = '';
-    this.processedHtml = '';
-  }
-  parseChildNode(node) {
-    const parsed = node.childNodes || [];
-    parsed.map((childNode) => {
-      if (childNode.tagName === 'dom-module') {
-        this.parseDomModuleNode(childNode);
-      } else if (childNode.tagName === 'link') {
-        this.processLink(childNode);
-      } else if (childNode.tagName === 'script') {
-        this.processedJs += `\n${parse5.serialize(childNode)}\n`;
-      } else {
-        this.parseChildNode(childNode);
-      }
-    });
+  constructor(content, loader) {
+    this.content = content;
+    this.options = loaderUtils.getOptions(loader) || {};    
   }
 
-  parseDomModuleNode(domModuleNode) {
-    const childNodes = domModuleNode.childNodes;
-    childNodes.map((childNode, index) => {
-      if (childNode.tagName === 'script') {
-        const src = childNode.attrs.filter((attr) => {
-          return attr.name === 'src';
-        });
-        if (src[0]) {
-          let path = src[0].value;
-          if (path.indexOf('./') < 0) {
-            path = loaderUtils.urlToRequest(src[0].value);
-          }
-          this.processedImports += `\nimport '${path}';\n`;
-        } else {
-          this.processedJs += `\n${parse5.serialize(childNode)}\n`;
-        }
-        domModuleNode.childNodes.splice(index, index + 1);
-      }
-    });
-    const minimized = minify(parse5.serialize(domModuleNode.parentNode), { collapseWhitespace: true, conservativeCollapse: true, minifyCSS: true });
-    this.processedHtml += '\nRegisterImport.register(\'' + minimized.replace(/'/g, "\\'") + '\');\n';
-    this.processedImports += '\nconst RegisterImport = require(\'./register-import\');\n';    
+  process() {
+    const links = this.links();
+    const doms = this.processDomModule();
+    const scripts = this.scripts();
+    return links + doms + scripts;
   }
-
-  processLink(linkNode) {
-    const href = linkNode.attrs.filter((attr) => {
-      return attr.name === 'href';
+  links() {
+    const parsed = parse5.parse(this.content);
+    let flatten = parse5Utils.flatten(parsed);
+    let links = flatten.filter((node) => {
+      return node.tagName === 'link';
     });
+    let returnValue = '';
     const ignoreLinks = this.options.ignoreLinks || [];
     const modules = this.options.modules || [];
-    let path = href[0].value || '';
-    const checkModules = modules.filter((module) => {
-      return path.indexOf(module) >= 0;
+    links.forEach((linkNode) => {
+      let path = parse5Utils.getAttribute(linkNode, 'href') || '';
+      if (path) {
+        const checkModules = modules.filter((module) => {
+          return path.indexOf(module) >= 0;
+        });
+        if (checkModules.length === 0) {
+          if (path.indexOf('./') < 0) {
+            path = loaderUtils.urlToRequest(path);
+          } else {
+            path = loaderUtils.urlToRequest(loaderUtils.urlToRequest(path, '~'));
+          }
+        }
+        if (ignoreLinks.indexOf(path) < 0) {
+          returnValue += `\nimport '${path}';\n`;
+        }
+      }
     });
-    if (checkModules.length === 0) {
-      if (path.indexOf('./') < 0) {
-        path = loaderUtils.urlToRequest(href[0].value);
+    return returnValue;
+  }
+  scripts() {
+    const parsed = parse5.parse(this.content);
+    let flatten = parse5Utils.flatten(parsed);
+    let scripts = flatten.filter((node) => {
+      return node.tagName === 'script';
+    });
+    let returnValue = '';
+    scripts.forEach((scriptNode) => {
+      let src = parse5Utils.getAttribute(scriptNode, 'src') || '';
+      if (src) {
+        if (src.indexOf('./') < 0) {
+          src = loaderUtils.urlToRequest(src);
+        }
+        returnValue += `\nimport '${src}';\n`;
       } else {
-        path = loaderUtils.urlToRequest(loaderUtils.urlToRequest(href[0].value, '~'));
+        returnValue += `\n${parse5.serialize(scriptNode)}\n`;
+      }
+    });
+    return returnValue;
+  }
+  processDomModule() {    
+    let fragmentNode = parse5Utils.parse(this.content, true);
+    if (fragmentNode.childNodes) {
+      fragmentNode.childNodes = fragmentNode.childNodes.filter((node) => {
+        return node.tagName === 'dom-module';
+      });
+      if (fragmentNode.childNodes[0]) {
+        fragmentNode.childNodes[0].childNodes = fragmentNode.childNodes[0].childNodes.filter((node) => {
+          return node.tagName !== 'script';
+        });
+      }
+      const minimized = minify(parse5.serialize(fragmentNode), { collapseWhitespace: true, conservativeCollapse: true, minifyCSS: true });
+      if (minimized) {
+        return '\nconst RegisterImport = require(\'./register-import\');\nRegisterImport.register(\'' + minimized.replace(/'/g, "\\'") + '\');\n';   
       }
     }
-    if (ignoreLinks.indexOf(path) < 0) {
-      this.processedImports += `\nimport '${path}';\n`;
-    }
+    return '';
   }
 }
 
 module.exports = function(content) {
-  const parsed = parse5.parse(content);
-  const processHtml = new ProcessHtml(this);
-  processHtml.parseChildNode(parsed);
-  return processHtml.processedImports + processHtml.processedHtml + processHtml.processedJs;
+  return new ProcessHtml(content, this).process();
 };
