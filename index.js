@@ -24,14 +24,14 @@ class ProcessHtml {
     });
     let returnValue = '';
     const ignoreLinks = this.options.ignoreLinks || [];
-    const modules = this.options.modules || [];
+    const ignorePathReWrites = this.options.ignorePathReWrite || [];
     links.forEach((linkNode) => {
       let path = parse5Utils.getAttribute(linkNode, 'href') || '';
       if (path) {
-        const checkModules = modules.filter((module) => {
-          return path.indexOf(module) >= 0;
+        const checkIgnorePaths = ignorePathReWrites.filter((ignorePath) => {
+          return path.indexOf(ignorePath) >= 0;
         });
-        if (checkModules.length === 0) {
+        if (checkIgnorePaths.length === 0) {
           if (path.indexOf('./') < 0) {
             path = loaderUtils.urlToRequest(path);
           } else {
@@ -78,7 +78,7 @@ class ProcessHtml {
       }
       const minimized = minify(parse5.serialize(fragmentNode), { collapseWhitespace: true, conservativeCollapse: true, minifyCSS: true });
       if (minimized) {
-        return '\nconst RegisterImport = require(\'./register-import\');\nRegisterImport.register(\'' + minimized.replace(/'/g, "\\'") + '\');\n';   
+        return '\nconst RegisterImport = require(\'./register-html-template\');\nRegisterHtmlTemplate.register(\'' + minimized.replace(/'/g, "\\'") + '\');\n';   
       }
     }
     return '';

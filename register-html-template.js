@@ -1,5 +1,5 @@
 'use strict';
-class RegisterImport {
+class RegisterHtmlTemplate {
   constructor() {}
   register(val) {
     const template = document.createElement('template');
@@ -9,4 +9,4 @@ class RegisterImport {
   }
 }
 
-module.exports = new RegisterImport();
+module.exports = new RegisterHtmlTemplate();
