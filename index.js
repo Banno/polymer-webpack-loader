@@ -78,7 +78,7 @@ class ProcessHtml {
       }
       const minimized = minify(parse5.serialize(fragmentNode), { collapseWhitespace: true, conservativeCollapse: true, minifyCSS: true });
       if (minimized) {
-        return '\nconst RegisterImport = require(\'./register-html-template\');\nRegisterHtmlTemplate.register(\'' + minimized.replace(/'/g, "\\'") + '\');\n';   
+        return '\nconst RegisterHtmlTemplate = require(\'./register-html-template\');\nRegisterHtmlTemplate.register(\'' + minimized.replace(/'/g, "\\'") + '\');\n';   
       }
     }
     return '';
