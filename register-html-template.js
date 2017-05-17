@@ -2,9 +2,9 @@
 class RegisterHtmlTemplate {
   constructor() {}
   register(val) {
-    const template = document.createElement('template');
-    template.innerHTML = val;
-    const node = template.content;
+    const element = document.createElement('div');
+    element.innerHTML = val;
+    const node = element.content;
     document.importNode(node, true);
   }
 }
