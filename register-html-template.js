@@ -2,10 +2,18 @@
 class RegisterHtmlTemplate {
   constructor() {}
   register(val) {
-    const element = document.createElement('div');
-    element.innerHTML = val;
-    const node = element.content;
-    document.importNode(node, true);
+    let content;
+    const template = document.createElement('template');
+    template.innerHTML = val;
+    if (template.content) {
+      content = template.content;
+    } else {
+      content = document.createDocumentFragment();
+      while (template.firstChild) {
+        content.appendChild(template.firstChild);
+      }
+    }
+    document.importNode(content, true);
   }
 }
 
