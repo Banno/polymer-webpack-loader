@@ -15,6 +15,18 @@ class RegisterHtmlTemplate {
     }
     document.importNode(content, true);
   }
+  toBody(val) {
+    val = val.trim();
+    if (val) {
+      const div = document.createElement('div');
+      div.innerHTML = val;
+      if (div.firstChild) {
+        document.addEventListener('DOMContentLoaded', (event) => {
+          document.body.insertBefore(div.firstChild, document.body.firstChild);
+        });
+      }
+    }
+  }
 }
 
 module.exports = new RegisterHtmlTemplate();

@@ -21,22 +21,29 @@ class ProcessHtml {
     let doc = parse5.parse(this.content, { locationInfo: true });
     dom5.removeFakeRootElements(doc);
     const domModule = dom5.query(doc, domPred);
-    if (domModule) {
-      const scripts = dom5.queryAll(domModule, scriptsPred);
-      scripts.forEach((scriptNode) => {
-        let src = dom5.getAttribute(scriptNode, 'src') || '';
-        if (src) {
-          const parseSrc = url.parse(src);
-          if (!parseSrc.protocol || !parseSrc.slashes) {
-            dom5.remove(scriptNode);
-          }
-        } else {
+    const scripts = dom5.queryAll(doc, scriptsPred);
+    scripts.forEach((scriptNode) => {
+      let src = dom5.getAttribute(scriptNode, 'src') || '';
+      if (src) {
+        const parseSrc = url.parse(src);
+        if (!parseSrc.protocol || !parseSrc.slashes) {
           dom5.remove(scriptNode);
         }
-      });
-      const minimized = minify(parse5.serialize(domModule.parentNode), { collapseWhitespace: true, conservativeCollapse: true, minifyCSS: true, removeComments: true });
-      if (minimized) {
-        return '\nconst RegisterHtmlTemplate = require(\'./register-html-template\');\nRegisterHtmlTemplate.register(\'' + minimized.replace(/'/g, "\\'") + '\');\n';   
+      } else {
+        dom5.remove(scriptNode);
+      }
+    });
+    const links = dom5.queryAll(doc, linkPred);
+    links.forEach((linkNode) => {
+      dom5.remove(linkNode);
+    });
+    const html = domModule ? domModule.parentNode : doc;
+    const minimized = minify(parse5.serialize(html), { collapseWhitespace: true, conservativeCollapse: true, minifyCSS: true, removeComments: true });
+    if (minimized) {
+      if (domModule) {
+        return '\nconst RegisterHtmlTemplate = require(\'./register-html-template\');\nRegisterHtmlTemplate.register(\'' + minimized.replace(/'/g, "\\'") + '\');\n';
+      } else {
+        return '\nconst RegisterHtmlTemplate = require(\'./register-html-template\');\nRegisterHtmlTemplate.toBody(\'' + minimized.replace(/'/g, "\\'") + '\');\n';
       }
     }
     return '';
