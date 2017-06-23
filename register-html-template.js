@@ -21,9 +21,13 @@ class RegisterHtmlTemplate {
       const div = document.createElement('div');
       div.innerHTML = val;
       if (div.firstChild) {
-        document.addEventListener('DOMContentLoaded', (event) => {
+        if (document.body) {
           document.body.insertBefore(div.firstChild, document.body.firstChild);
-        });
+        } else {
+          document.addEventListener('DOMContentLoaded', (event) => {
+            document.body.insertBefore(div.firstChild, document.body.firstChild);
+          });
+        }
       }
     }
   }
