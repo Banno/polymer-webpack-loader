@@ -33,15 +33,6 @@ An array of paths to be ignored when dynamically imported. When the component lo
 
 Paths the loader will respect as is. In order to properly import certain paths, checks are made to ensure the path is picked up correctly by Webpack. Paths matching a value in the Array will be imported as is, you may have aliases or just want the loader to respect the path.
 
-### Register Html Template
-Default module that injects your component's dom-module into the dom at runtime. If you wish to use a different module for runtime execution of your dom-module you can simply change the alias below to point to your module. The module must export a class RegisterHtmlTemplate with a function register.
-
-The alias below is currently required.
-```javascript
-alias: {
-  './register-html-template$': path.resolve(__dirname, '../node_modules/component-loader/register-html-template')  
-}
-```
 ### Use of HtmlWebpackPlugin
 Depending on how you configure the HtmlWebpackPlugin you may encounter conflicts with the component-loader. 
 
