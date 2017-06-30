@@ -10,6 +10,7 @@ This is a [webpack](https://webpack.js.org/) loader for Polymer applications and
   excludes: RegEx (optional),
   options: {
     ignoreLinks: Array (optional),
+    ignoreLinksFromPartialMatches: Array (optional),
     ignorePathReWrite: Array (optional)
   },
   loader: 'component-loader'
@@ -28,6 +29,10 @@ A regular expression for files that the loader should exclude. NOTE: Files impor
 #### ignoreLinks: Array
 
 An array of paths to be ignored when dynamically imported. When the component loader comes across a `<link>` in your components it dynamically imports the value of href attribute.  
+
+#### ignoreLinksFromPartialMatches: Array
+
+An array of paths to be ignored when dynamically imported based on match of string anywhere within the path. When the component loader comes across a `<link>` in your components it dynamically imports the value of href attribute.  
 
 #### ignorePathReWrite: Array
 
