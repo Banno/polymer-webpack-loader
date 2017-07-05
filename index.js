@@ -55,6 +55,7 @@ class ProcessHtml {
 
     let returnValue = '';
     const ignoreLinks = this.options.ignoreLinks || [];
+    const ignoreLinksFromPartialMatches = this.options.ignoreLinksFromPartialMatches || [];
     const ignorePathReWrites = this.options.ignorePathReWrite || [];
     links.forEach((linkNode) => {
       let href = dom5.getAttribute(linkNode, 'href') || '';
@@ -68,9 +69,16 @@ class ProcessHtml {
         } else {
           path = href;
         }
-        if (ignoreLinks.indexOf(href) < 0) {
+
+        const ignoredFromPartial = ignoreLinksFromPartialMatches.filter(partial => {
+            return href.indexOf(partial) >= 0;
+        });
+
+        if (ignoreLinks.indexOf(href) < 0 && ignoredFromPartial.length === 0) {
           returnValue += `\nimport '${path}';\n`;
         }
+
+
       }
     });
     return returnValue;
