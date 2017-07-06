@@ -1,4 +1,4 @@
-# component-loader
+# polymer-loader
 ## WebPack Loader for Polymer Web Components
 
 This is a [webpack](https://webpack.js.org/) loader for Polymer applications and components. It has a built in module that will load your application components at runtime with the use of importNode. 
