@@ -1,4 +1,5 @@
 # polymer-webpack-loader
+[![npm version](https://badge.fury.io/js/polymer-webpack-loader.svg)](https://badge.fury.io/js/polymer-webpack-loader)
 ## WebPack Loader for Polymer Web Components
 ### Breaking Change: This repo was previously component-loader. If you have local references to the component-loader please update them to reflect the polymer-webpack-loader.
 
