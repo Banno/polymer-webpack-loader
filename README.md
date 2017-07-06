@@ -1,5 +1,6 @@
 # polymer-loader
 ## WebPack Loader for Polymer Web Components
+### Breaking Change: This repo was previously component-loader. If you have local references to the component-loader please update them to reflect the polymer-loader.
 
 This is a [webpack](https://webpack.js.org/) loader for Polymer applications and components. It has a built in module that will load your application components at runtime with the use of importNode. 
 
@@ -16,7 +17,6 @@ This is a [webpack](https://webpack.js.org/) loader for Polymer applications and
   loader: 'polymer-loader'
 },
 ```
-Note: This repo was prevoiusly component-loader. If you have local references to the component-loader please update them to reflect the polymer-loader.
 
 ### Includes: Array
 

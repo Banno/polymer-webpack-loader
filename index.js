@@ -41,9 +41,9 @@ class ProcessHtml {
     const minimized = minify(parse5.serialize(html), { collapseWhitespace: true, conservativeCollapse: true, minifyCSS: true, removeComments: true });
     if (minimized) {
       if (domModule) {
-        return '\nconst RegisterHtmlTemplate = require(\'component-loader/register-html-template\');\nRegisterHtmlTemplate.register(\'' + minimized.replace(/'/g, "\\'") + '\');\n';
+        return '\nconst RegisterHtmlTemplate = require(\'polymer-loader/register-html-template\');\nRegisterHtmlTemplate.register(\'' + minimized.replace(/'/g, "\\'") + '\');\n';
       } else {
-        return '\nconst RegisterHtmlTemplate = require(\'component-loader/register-html-template\');\nRegisterHtmlTemplate.toBody(\'' + minimized.replace(/'/g, "\\'") + '\');\n';
+        return '\nconst RegisterHtmlTemplate = require(\'polymer-loader/register-html-template\');\nRegisterHtmlTemplate.toBody(\'' + minimized.replace(/'/g, "\\'") + '\');\n';
       }
     }
     return '';
