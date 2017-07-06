@@ -13,9 +13,11 @@ This is a [webpack](https://webpack.js.org/) loader for Polymer applications and
     ignoreLinksFromPartialMatches: Array (optional),
     ignorePathReWrite: Array (optional)
   },
-  loader: 'component-loader'
+  loader: 'polymer-loader'
 },
 ```
+Note: This repo was prevoiusly component-loader. If you have local references to the component-loader please update them to reflect the polymer-loader.
+
 ### Includes: Array
 
 Directories that contain your web components. This will allow you to control where the loader can access files to process. WARNING: If this property exists the loader will only process files that have their parent directory listed. So if you have `<link>` in your components to other directories they MUST be included in this Array.
@@ -39,7 +41,7 @@ An array of paths to be ignored when dynamically imported based on match of stri
 Paths the loader will respect as is. In order to properly import certain paths, checks are made to ensure the path is picked up correctly by Webpack. Paths matching a value in the Array will be imported as is, you may have aliases or just want the loader to respect the path.
 
 ### Use of HtmlWebpackPlugin
-Depending on how you configure the HtmlWebpackPlugin you may encounter conflicts with the component-loader. 
+Depending on how you configure the HtmlWebpackPlugin you may encounter conflicts with the polymer-loader. 
 
 Example: 
 
@@ -53,7 +55,7 @@ Example:
 },
 {
   test: /\.html$/,  
-  loader: 'component-loader'
+  loader: 'polymer-loader'
 }
 ```
-This would expose your index.html file to the component-loader based on the process used by the html-loader. In this case you would need to exclude your html file from the component-loader or look for other ways to avoid this conflict. See: [html-webpack-plugin template options](https://github.com/jantimon/html-webpack-plugin/blob/master/docs/template-option.md)
+This would expose your index.html file to the polymer-loader based on the process used by the html-loader. In this case you would need to exclude your html file from the polymer-loader or look for other ways to avoid this conflict. See: [html-webpack-plugin template options](https://github.com/jantimon/html-webpack-plugin/blob/master/docs/template-option.md)
