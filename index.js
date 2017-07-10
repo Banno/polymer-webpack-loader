@@ -17,6 +17,10 @@ class ProcessHtml {
     this.options = loaderUtils.getOptions(loader) || {};
     this.currentFilePath = loader.resourcePath;
   }
+  /**
+   * Looks for all `<dom-module>` elements, removing any `<script>`'s without a
+   * `src` and any `<link>` tags, as these are processed in separate steps.
+   */
   domModule() {
     let doc = parse5.parse(this.content, { locationInfo: true });
     dom5.removeFakeRootElements(doc);
@@ -48,6 +52,15 @@ class ProcessHtml {
     }
     return '';
   }
+  /**
+   * Look for all `<link>` elements and turn them into `import` statements.
+   * e.g. 
+   * ```
+   * <link rel="import" href="paper-input/paper-input.html">
+   * becomes:
+   * import 'paper-input/paper-input.html';
+   * ```
+   */
   links() {
     const doc = parse5.parse(this.content, { locationInfo: true });
     dom5.removeFakeRootElements(doc);
@@ -83,12 +96,28 @@ class ProcessHtml {
     });
     return returnValue;
   }
+  /**
+   * Process `<link>` tags, `<dom-module>` elements, and any `<script>`'s.
+   * Return transformed content as a bundle for webpack.
+   */
   process() {
     const links = this.links();
     const doms = this.domModule();
     const scripts = this.scripts();
     return links + doms + scripts;
   }
+  /**
+   * Look for all `<script>` elements. If the script has a valid `src` attribute
+   * it will be converted to an `import` statement.
+   * e.g.
+   * ```
+   * <script src="foo.js">
+   * becomes:
+   * import 'foo';
+   * ```
+   * Otherwise if it's an inline script block, the content will be serialized
+   * and returned as part of the bundle.
+   */
   scripts() {
     const doc = parse5.parse(this.content, { locationInfo: true });
     dom5.removeFakeRootElements(doc);
