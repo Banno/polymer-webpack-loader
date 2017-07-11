@@ -20,49 +20,13 @@ class ProcessHtml {
     this.currentFilePath = loader.resourcePath;
   }
   /**
-   * Looks for all `<dom-module>` elements, removing any `<script>`'s without a
-   * `src` and any `<link>` tags, as these are processed in separate steps.
-   * @return {{source: string, lineCount: number}}
+   * Process `<link>` tags, `<dom-module>` elements, and any `<script>`'s.
+   * Return transformed content as a bundle for webpack.
    */
-  domModule() {
-    let doc = parse5.parse(this.content, { locationInfo: true });
-    dom5.removeFakeRootElements(doc);
-    const domModule = dom5.query(doc, domPred);
-    const scripts = dom5.queryAll(doc, scriptsPred);
-    scripts.forEach((scriptNode) => {
-      let src = dom5.getAttribute(scriptNode, 'src') || '';
-      if (src) {
-        const parseSrc = url.parse(src);
-        if (!parseSrc.protocol || !parseSrc.slashes) {
-          dom5.remove(scriptNode);
-        }
-      } else {
-        dom5.remove(scriptNode);
-      }
-    });
-    const links = dom5.queryAll(doc, linkPred);
-    links.forEach((linkNode) => {
-      dom5.remove(linkNode);
-    });
-    const html = domModule ? domModule.parentNode : doc;
-    const minimized = minify(parse5.serialize(html), { collapseWhitespace: true, conservativeCollapse: true, minifyCSS: true, removeComments: true });
-    if (minimized) {
-      if (domModule) {
-        return {
-          source: '\nconst RegisterHtmlTemplate = require(\'polymer-webpack-loader/register-html-template\');\nRegisterHtmlTemplate.register(\'' + minimized.replace(/'/g, "\\'") + '\');\n',
-          lineCount: 3
-        };
-      } else {
-        return {
-          source: '\nconst RegisterHtmlTemplate = require(\'polymer-webpack-loader/register-html-template\');\nRegisterHtmlTemplate.toBody(\'' + minimized.replace(/'/g, "\\'") + '\');\n',
-          lineCount: 3
-        };
-      }
-    }
-    return {
-      source: '',
-      lineCount: 0
-    };
+  process() {
+    const links = this.links();
+    const doms = this.domModule();
+    return this.scripts(links.source + doms.source, links.lineCount + doms.lineCount);
   }
   /**
    * Look for all `<link>` elements and turn them into `import` statements.
@@ -115,13 +79,49 @@ class ProcessHtml {
     };
   }
   /**
-   * Process `<link>` tags, `<dom-module>` elements, and any `<script>`'s.
-   * Return transformed content as a bundle for webpack.
+   * Looks for all `<dom-module>` elements, removing any `<script>`'s without a
+   * `src` and any `<link>` tags, as these are processed in separate steps.
+   * @return {{source: string, lineCount: number}}
    */
-  process() {
-    const links = this.links();
-    const doms = this.domModule();
-    return this.scripts(links.source + doms.source, links.lineCount + doms.lineCount);
+  domModule() {
+    let doc = parse5.parse(this.content, { locationInfo: true });
+    dom5.removeFakeRootElements(doc);
+    const domModule = dom5.query(doc, domPred);
+    const scripts = dom5.queryAll(doc, scriptsPred);
+    scripts.forEach((scriptNode) => {
+      let src = dom5.getAttribute(scriptNode, 'src') || '';
+      if (src) {
+        const parseSrc = url.parse(src);
+        if (!parseSrc.protocol || !parseSrc.slashes) {
+          dom5.remove(scriptNode);
+        }
+      } else {
+        dom5.remove(scriptNode);
+      }
+    });
+    const links = dom5.queryAll(doc, linkPred);
+    links.forEach((linkNode) => {
+      dom5.remove(linkNode);
+    });
+    const html = domModule ? domModule.parentNode : doc;
+    const minimized = minify(parse5.serialize(html), { collapseWhitespace: true, conservativeCollapse: true, minifyCSS: true, removeComments: true });
+    if (minimized) {
+      if (domModule) {
+        return {
+          source: '\nconst RegisterHtmlTemplate = require(\'polymer-webpack-loader/register-html-template\');\nRegisterHtmlTemplate.register(\'' + minimized.replace(/'/g, "\\'") + '\');\n',
+          lineCount: 3
+        };
+      } else {
+        return {
+          source: '\nconst RegisterHtmlTemplate = require(\'polymer-webpack-loader/register-html-template\');\nRegisterHtmlTemplate.toBody(\'' + minimized.replace(/'/g, "\\'") + '\');\n',
+          lineCount: 3
+        };
+      }
+    }
+    return {
+      source: '',
+      lineCount: 0
+    };
   }
   /**
    * Look for all `<script>` elements. If the script has a valid `src` attribute
