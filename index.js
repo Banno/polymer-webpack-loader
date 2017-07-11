@@ -19,7 +19,11 @@ class ProcessHtml {
     this.options = loaderUtils.getOptions(loader) || {};
     this.currentFilePath = loader.resourcePath;
   }
-  /** @return {{source: string, lineCount: number}} */
+  /**
+   * Looks for all `<dom-module>` elements, removing any `<script>`'s without a
+   * `src` and any `<link>` tags, as these are processed in separate steps.
+   * @return {{source: string, lineCount: number}}
+   */
   domModule() {
     let doc = parse5.parse(this.content, { locationInfo: true });
     dom5.removeFakeRootElements(doc);
@@ -60,8 +64,16 @@ class ProcessHtml {
       lineCount: 0
     };
   }
-
-  /** @return {{source: string, lineCount: number}} */
+  /**
+   * Look for all `<link>` elements and turn them into `import` statements.
+   * e.g. 
+   * ```
+   * <link rel="import" href="paper-input/paper-input.html">
+   * becomes:
+   * import 'paper-input/paper-input.html';
+   * ```
+   * @return {{source: string, lineCount: number}}
+   */
   links() {
     const doc = parse5.parse(this.content, { locationInfo: true });
     dom5.removeFakeRootElements(doc);
@@ -102,13 +114,26 @@ class ProcessHtml {
       lineCount
     };
   }
+  /**
+   * Process `<link>` tags, `<dom-module>` elements, and any `<script>`'s.
+   * Return transformed content as a bundle for webpack.
+   */
   process() {
     const links = this.links();
     const doms = this.domModule();
     return this.scripts(links.source + doms.source, links.lineCount + doms.lineCount);
   }
-
   /**
+   * Look for all `<script>` elements. If the script has a valid `src` attribute
+   * it will be converted to an `import` statement.
+   * e.g.
+   * ```
+   * <script src="foo.js">
+   * becomes:
+   * import 'foo';
+   * ```
+   * Otherwise if it's an inline script block, the content will be serialized
+   * and returned as part of the bundle.
    * @param {string} initialSource previously generated JS
    * @param {number} lineOffset number of lines already in initialSource
    * @return {{source: string, sourceMap: Object=}}
