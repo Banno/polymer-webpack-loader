@@ -18,10 +18,12 @@
   "homepage": "https://github.com/Banno/polymer-webapck-loader#readme",
   "dependencies": {
     "dom5": "^2.3.0",
+    "espree": "^3.4.3",
     "html-minifier": "^3.4.3",
     "loader-utils": "^1.1.0",
     "parse5": "^3.0.2",
     "parse5-utils": "^2.0.0",
+    "source-map": "^0.5.6",
     "webpack": "^2.4.1"
   }
 }
