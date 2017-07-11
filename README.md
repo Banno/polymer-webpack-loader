@@ -41,6 +41,36 @@ An array of paths to be ignored when dynamically imported based on match of stri
 
 Paths the loader will respect as is. In order to properly import certain paths, checks are made to ensure the path is picked up correctly by Webpack. Paths matching a value in the Array will be imported as is, you may have aliases or just want the loader to respect the path.
 
+### Use with Babel (or other JS transpilers)
+If you'd like to transpile the contents of your element's `<script>` block you can [chain an additional loader](https://webpack.js.org/configuration/module/#rule-use).
+
+```js
+module: {
+  loaders: [
+    {
+      test: /\.html$/,
+      use: [
+        // Chained loaders are applied last to first
+        { loader: 'babel-loader' },
+        { loader: 'polymer-webpack-loader' }
+      ]
+    }
+  ]
+}
+
+// alternative syntax
+
+module: {
+  loaders: [
+    {
+      test: /\.html$/,
+      // Chained loaders are applied right to left
+      loader: 'babel-loader!polymer-webpack-loader'
+    }
+  ]
+}
+```
+
 ### Use of HtmlWebpackPlugin
 Depending on how you configure the HtmlWebpackPlugin you may encounter conflicts with the polymer-webpack-loader. 
 
