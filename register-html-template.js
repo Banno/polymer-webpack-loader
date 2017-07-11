@@ -1,6 +1,16 @@
 'use strict';
 class RegisterHtmlTemplate {
   constructor() {}
+  /**
+   * Create a `<template>` element to hold `<dom-module>` content.
+   * This bit of code will execute in the context of the main document,
+   * calling `importNode` on the `<template>`, which in turn triggers
+   * the lifecycle of the `<dom-module>` and allows it to insert its
+   * content into Polymer's global module map. When a Polymer element
+   * boots up it will fetch its template from this module map.
+   * https://github.com/Polymer/polymer/blob/master/lib/mixins/element-mixin.html#L501-L538
+   * @param {string} val A `<dom-module>` as an HTML string
+   */
   register(val) {
     let content;
     const template = document.createElement('template');
@@ -15,6 +25,13 @@ class RegisterHtmlTemplate {
     }
     document.importNode(content, true);
   }
+  /**
+   * Content that will be injected into the main document. This is primarily
+   * for things like `<iron-iconset>` and `<custom-style>` which do not have
+   * templates but rely on HTML Imports ability to apply content to the main
+   * document.
+   * @param {string} val An HTML string
+   */
   toBody(val) {
     val = val.trim();
     if (val) {
