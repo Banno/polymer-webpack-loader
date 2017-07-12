@@ -1,16 +1,16 @@
-'use strict';
+
+const url = require('url');
 const dom5 = require('dom5');
 const loaderUtils = require('loader-utils');
 const minify = require('html-minifier').minify;
 const osPath = require('path');
 const parse5 = require('parse5');
-const url = require('url');
 
 const pred = dom5.predicates;
 const domPred = pred.AND(pred.hasTagName('dom-module'));
 const linkPred = pred.AND(pred.hasTagName('link'));
 const scriptsPred = pred.AND(pred.hasTagName('script'));
-const espree = require("espree");
+const espree = require('espree');
 const sourceMap = require('source-map');
 
 class ProcessHtml {
@@ -49,33 +49,27 @@ class ProcessHtml {
     const ignorePathReWrites = this.options.ignorePathReWrite || [];
     let lineCount = 0;
     links.forEach((linkNode) => {
-      let href = dom5.getAttribute(linkNode, 'href') || '';
+      const href = dom5.getAttribute(linkNode, 'href') || '';
       let path = '';
       if (href) {
-        const checkIgnorePaths = ignorePathReWrites.filter((ignorePath) => {
-          return href.indexOf(ignorePath) >= 0;
-        });
+        const checkIgnorePaths = ignorePathReWrites.filter(ignorePath => href.indexOf(ignorePath) >= 0);
         if (checkIgnorePaths.length === 0) {
           path = osPath.join(osPath.dirname(this.currentFilePath), href);
         } else {
           path = href;
         }
 
-        const ignoredFromPartial = ignoreLinksFromPartialMatches.filter(partial => {
-            return href.indexOf(partial) >= 0;
-        });
+        const ignoredFromPartial = ignoreLinksFromPartialMatches.filter(partial => href.indexOf(partial) >= 0);
 
         if (ignoreLinks.indexOf(href) < 0 && ignoredFromPartial.length === 0) {
           source += `\nimport '${path}';\n`;
           lineCount += 2;
         }
-
-
       }
     });
     return {
       source,
-      lineCount
+      lineCount,
     };
   }
   /**
@@ -84,12 +78,12 @@ class ProcessHtml {
    * @return {{source: string, lineCount: number}}
    */
   domModule() {
-    let doc = parse5.parse(this.content, { locationInfo: true });
+    const doc = parse5.parse(this.content, { locationInfo: true });
     dom5.removeFakeRootElements(doc);
     const domModule = dom5.query(doc, domPred);
     const scripts = dom5.queryAll(doc, scriptsPred);
     scripts.forEach((scriptNode) => {
-      let src = dom5.getAttribute(scriptNode, 'src') || '';
+      const src = dom5.getAttribute(scriptNode, 'src') || '';
       if (src) {
         const parseSrc = url.parse(src);
         if (!parseSrc.protocol || !parseSrc.slashes) {
@@ -108,19 +102,18 @@ class ProcessHtml {
     if (minimized) {
       if (domModule) {
         return {
-          source: '\nconst RegisterHtmlTemplate = require(\'polymer-webpack-loader/register-html-template\');\nRegisterHtmlTemplate.register(\'' + minimized.replace(/'/g, "\\'") + '\');\n',
-          lineCount: 3
-        };
-      } else {
-        return {
-          source: '\nconst RegisterHtmlTemplate = require(\'polymer-webpack-loader/register-html-template\');\nRegisterHtmlTemplate.toBody(\'' + minimized.replace(/'/g, "\\'") + '\');\n',
-          lineCount: 3
+          source: `\nconst RegisterHtmlTemplate = require('${loaderUtils.stringifyRequest(this, require.resolve('./register-html-template.js'))}');\nRegisterHtmlTemplate.register('${minimized.replace(/'/g, "\\'")}');\n`,
+          lineCount: 3,
         };
       }
+      return {
+        source: `\nconst RegisterHtmlTemplate = + require('${loaderUtils.stringifyRequest(this, require.resolve('./register-html-template.js'))}');\nRegisterHtmlTemplate.toBody('${minimized.replace(/'/g, "\\'")}');\n`,
+        lineCount: 3,
+      };
     }
     return {
       source: '',
-      lineCount: 0
+      lineCount: 0,
     };
   }
   /**
@@ -145,7 +138,7 @@ class ProcessHtml {
     let source = initialSource;
     let sourceMapGenerator = null;
     scripts.forEach((scriptNode) => {
-      let src = dom5.getAttribute(scriptNode, 'src') || '';
+      const src = dom5.getAttribute(scriptNode, 'src') || '';
       if (src) {
         const parseSrc = url.parse(src);
         if (!parseSrc.protocol || !parseSrc.slashes) {
@@ -156,27 +149,27 @@ class ProcessHtml {
       } else {
         const scriptContents = parse5.serialize(scriptNode);
         sourceMapGenerator = sourceMapGenerator || new sourceMap.SourceMapGenerator();
-        const tokens = espree.tokenize(scriptContents, {loc: true, ecmaVersion: 2017, sourceType: 'module'});
+        const tokens = espree.tokenize(scriptContents, { loc: true, ecmaVersion: 2017, sourceType: 'module' });
 
         // For script node content tokens, we need to offset the token position by the
         // line number of the script tag itself. And for the first line, offset the start
         // column to account for the <script> tag itself.
         const currentScriptLineOffset = scriptNode.childNodes[0].__location.line - 1;
         const firstLineCharOffset = scriptNode.childNodes[0].__location.col;
-        tokens.forEach(token => {
+        tokens.forEach((token) => {
           if (!token.loc) {
             return null;
           }
-          let mapping = {
+          const mapping = {
             original: {
               line: token.loc.start.line + currentScriptLineOffset,
-              column: token.loc.start.column + (token.loc.start.line === 1 ? firstLineCharOffset : 0)
+              column: token.loc.start.column + (token.loc.start.line === 1 ? firstLineCharOffset : 0),
             },
             generated: {
               line: token.loc.start.line + lineOffset,
-              column: token.loc.start.column
+              column: token.loc.start.column,
             },
-            source: this.currentFilePath
+            source: this.currentFilePath,
           };
 
           if (token.type === 'Identifier') {
@@ -190,7 +183,7 @@ class ProcessHtml {
       }
     });
     const retVal = {
-      source
+      source,
     };
     if (sourceMapGenerator) {
       sourceMapGenerator.setSourceContent(this.currentFilePath, this.content);
@@ -199,7 +192,7 @@ class ProcessHtml {
     return retVal;
   }
 }
-module.exports = function(content, map) {
+module.exports = function (content) {
   const results = new ProcessHtml(content, this).process();
   this.callback(null, results.source, results.sourceMap);
 };
