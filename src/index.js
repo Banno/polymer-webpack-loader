@@ -102,12 +102,12 @@ class ProcessHtml {
     if (minimized) {
       if (domModule) {
         return {
-          source: `\nconst RegisterHtmlTemplate = require('${loaderUtils.stringifyRequest(this, require.resolve('./register-html-template.js'))}');\nRegisterHtmlTemplate.register('${minimized.replace(/'/g, "\\'")}');\n`,
+          source: `\nconst RegisterHtmlTemplate = require(${loaderUtils.stringifyRequest(this, require.resolve('./register-html-template.js'))});\nRegisterHtmlTemplate.register('${minimized.replace(/'/g, "\\'")}');\n`,
           lineCount: 3,
         };
       }
       return {
-        source: `\nconst RegisterHtmlTemplate = + require('${loaderUtils.stringifyRequest(this, require.resolve('./register-html-template.js'))}');\nRegisterHtmlTemplate.toBody('${minimized.replace(/'/g, "\\'")}');\n`,
+        source: `\nconst RegisterHtmlTemplate = + require(${loaderUtils.stringifyRequest(this, require.resolve('./register-html-template.js'))});\nRegisterHtmlTemplate.toBody('${minimized.replace(/'/g, "\\'")}');\n`,
         lineCount: 3,
       };
     }
