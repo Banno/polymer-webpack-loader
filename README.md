@@ -19,6 +19,9 @@ This is a [webpack](https://webpack.js.org/) loader for Polymer applications and
 },
 ```
 
+<img width="1024" alt="blog - 7" src="https://user-images.githubusercontent.com/1066253/28131928-3b257288-66f0-11e7-8295-cb968cefb040.png">
+
+
 ### Includes: Array
 
 Directories that contain your web components. This will allow you to control where the loader can access files to process. WARNING: If this property exists the loader will only process files that have their parent directory listed. So if you have `<link>` in your components to other directories they MUST be included in this Array.
