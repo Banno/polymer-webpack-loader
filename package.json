@@ -8,14 +8,14 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Banno/polymer-webpack-loader.git"
+    "url": "git+https://github.com/webpack-contrib/polymer-webpack-loader.git"
   },
   "author": "bryandcoulter@gmail.com",
   "license": "Apache-2.0",
   "bugs": {
-    "url": "https://github.com/Banno/polymer-webpack-loader/issues"
+    "url": "https://github.com/webpack-contrib/polymer-webpack-loader/issues"
   },
-  "homepage": "https://github.com/Banno/polymer-webapck-loader#readme",
+  "homepage": "https://github.com/webpack-contrib/polymer-webapck-loader#readme",
   "dependencies": {
     "dom5": "^2.3.0",
     "espree": "^3.4.3",
