@@ -2,7 +2,7 @@
   "name": "polymer-webpack-loader",
   "version": "1.0.0",
   "description": "WebPack Loader for Polymer Web Components",
-  "main": "dist/cjs.js",
+  "main": "src/cjs.js",
   "scripts": {
     "test": "jest",
     "webpack-defaults": "webpack-defaults",
@@ -72,8 +72,7 @@
   "pre-commit": "lint-staged",
   "lint-staged": {
     "*.js": [
-      //"eslint --fix",
-      //"git add"
+      
     ]
   }
 }
