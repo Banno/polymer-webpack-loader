@@ -28,7 +28,7 @@ jobs:
       script: yarn run travis:$JOB_PART
       after_success: 'bash <(curl -s https://codecov.io/bash)'
     - stage: Webpack canary
-      before_script: yarn add --no-save git://github.com/webpack/webpack.git#master
+      before_script: npm i --no-save git://github.com/webpack/webpack.git#master
       script: yarn run travis:$JOB_PART
       node_js: 8
       env: WEBPACK_VERSION=canary JOB_PART=test
@@ -40,7 +40,7 @@ before_install:
 before_script:
   - |-
     if [ "$WEBPACK_VERSION" ]; then
-      yarn add --no-save webpack@$WEBPACK_VERSION
+      npm i --no-save webpack@$WEBPACK_VERSION
     fi
 script:
   - 'yarn run travis:$JOB_PART'
