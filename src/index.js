@@ -1,17 +1,15 @@
+import osPath from 'path';
+import url from 'url';
+import { getAttribute, predicates, query, queryAll, remove, removeFakeRootElements } from 'dom5';
+import loaderUtils from 'loader-utils';
+import { minify } from 'html-minifier';
+import parse5 from 'parse5';
+import espree from 'espree';
+import sourceMap from 'source-map';
 
-const url = require('url');
-const dom5 = require('dom5');
-const loaderUtils = require('loader-utils');
-const minify = require('html-minifier').minify;
-const osPath = require('path');
-const parse5 = require('parse5');
-
-const pred = dom5.predicates;
-const domPred = pred.AND(pred.hasTagName('dom-module'));
-const linkPred = pred.AND(pred.hasTagName('link'));
-const scriptsPred = pred.AND(pred.hasTagName('script'));
-const espree = require('espree');
-const sourceMap = require('source-map');
+const domPred = predicates.AND(predicates.hasTagName('dom-module'));
+const linkPred = predicates.AND(predicates.hasTagName('link'));
+const scriptsPred = predicates.AND(predicates.hasTagName('script'));
 
 class ProcessHtml {
   constructor(content, loader) {
@@ -30,7 +28,7 @@ class ProcessHtml {
   }
   /**
    * Look for all `<link>` elements and turn them into `import` statements.
-   * e.g. 
+   * e.g.
    * ```
    * <link rel="import" href="paper-input/paper-input.html">
    * becomes:
@@ -40,8 +38,8 @@ class ProcessHtml {
    */
   links() {
     const doc = parse5.parse(this.content, { locationInfo: true });
-    dom5.removeFakeRootElements(doc);
-    const links = dom5.queryAll(doc, linkPred);
+    removeFakeRootElements(doc);
+    const links = queryAll(doc, linkPred);
 
     let source = '';
     const ignoreLinks = this.options.ignoreLinks || [];
@@ -49,7 +47,7 @@ class ProcessHtml {
     const ignorePathReWrites = this.options.ignorePathReWrite || [];
     let lineCount = 0;
     links.forEach((linkNode) => {
-      const href = dom5.getAttribute(linkNode, 'href') || '';
+      const href = getAttribute(linkNode, 'href') || '';
       let path = '';
       if (href) {
         const checkIgnorePaths = ignorePathReWrites.filter(ignorePath => href.indexOf(ignorePath) >= 0);
@@ -79,35 +77,46 @@ class ProcessHtml {
    */
   domModule() {
     const doc = parse5.parse(this.content, { locationInfo: true });
-    dom5.removeFakeRootElements(doc);
-    const domModule = dom5.query(doc, domPred);
-    const scripts = dom5.queryAll(doc, scriptsPred);
+    removeFakeRootElements(doc);
+    const domModule = query(doc, domPred);
+    const scripts = queryAll(doc, scriptsPred);
     scripts.forEach((scriptNode) => {
-      const src = dom5.getAttribute(scriptNode, 'src') || '';
+      const src = getAttribute(scriptNode, 'src') || '';
       if (src) {
         const parseSrc = url.parse(src);
         if (!parseSrc.protocol || !parseSrc.slashes) {
-          dom5.remove(scriptNode);
+          remove(scriptNode);
         }
       } else {
-        dom5.remove(scriptNode);
+        remove(scriptNode);
       }
     });
-    const links = dom5.queryAll(doc, linkPred);
+    const links = queryAll(doc, linkPred);
     links.forEach((linkNode) => {
-      dom5.remove(linkNode);
+      remove(linkNode);
     });
     const html = domModule ? domModule.parentNode : doc;
-    const minimized = minify(parse5.serialize(html), { collapseWhitespace: true, conservativeCollapse: true, minifyCSS: true, removeComments: true });
+    const minimized = minify(parse5.serialize(html), {
+      collapseWhitespace: true,
+      conservativeCollapse: true,
+      minifyCSS: true,
+      removeComments: true,
+    });
     if (minimized) {
       if (domModule) {
         return {
-          source: `\nconst RegisterHtmlTemplate = require(${loaderUtils.stringifyRequest(this, require.resolve('./register-html-template.js'))});\nRegisterHtmlTemplate.register('${minimized.replace(/'/g, "\\'")}');\n`,
+          source: `
+const RegisterHtmlTemplate = require('polymer-webpack-loader/register-html-template');
+RegisterHtmlTemplate.register('${minimized.replace(/'/g, "\\'")}');
+`,
           lineCount: 3,
         };
       }
       return {
-        source: `\nconst RegisterHtmlTemplate = require(${loaderUtils.stringifyRequest(this, require.resolve('./register-html-template.js'))});\nRegisterHtmlTemplate.toBody('${minimized.replace(/'/g, "\\'")}');\n`,
+        source: `
+const RegisterHtmlTemplate = require('polymer-webpack-loader/register-html-template');
+RegisterHtmlTemplate.toBody('${minimized.replace(/'/g, "\\'")}');
+`,
         lineCount: 3,
       };
     }
@@ -128,17 +137,18 @@ class ProcessHtml {
    * Otherwise if it's an inline script block, the content will be serialized
    * and returned as part of the bundle.
    * @param {string} initialSource previously generated JS
-   * @param {number} lineOffset number of lines already in initialSource
+   * @param {number} initialLineOffset number of lines already in initialSource
    * @return {{source: string, sourceMap: Object=}}
    */
-  scripts(initialSource, lineOffset) {
+  scripts(initialSource, initialLineOffset) {
+    let lineOffset = initialLineOffset;
     const doc = parse5.parse(this.content, { locationInfo: true });
-    dom5.removeFakeRootElements(doc);
-    const scripts = dom5.queryAll(doc, scriptsPred);
+    removeFakeRootElements(doc);
+    const scripts = queryAll(doc, scriptsPred);
     let source = initialSource;
     let sourceMapGenerator = null;
     scripts.forEach((scriptNode) => {
-      const src = dom5.getAttribute(scriptNode, 'src') || '';
+      const src = getAttribute(scriptNode, 'src') || '';
       if (src) {
         const parseSrc = url.parse(src);
         if (!parseSrc.protocol || !parseSrc.slashes) {
@@ -149,16 +159,20 @@ class ProcessHtml {
       } else {
         const scriptContents = parse5.serialize(scriptNode);
         sourceMapGenerator = sourceMapGenerator || new sourceMap.SourceMapGenerator();
-        const tokens = espree.tokenize(scriptContents, { loc: true, ecmaVersion: 2017, sourceType: 'module' });
+        const tokens = espree.tokenize(scriptContents, {
+          loc: true,
+          ecmaVersion: 2017,
+          sourceType: 'module',
+        });
 
         // For script node content tokens, we need to offset the token position by the
         // line number of the script tag itself. And for the first line, offset the start
         // column to account for the <script> tag itself.
-        const currentScriptLineOffset = scriptNode.childNodes[0].__location.line - 1;
-        const firstLineCharOffset = scriptNode.childNodes[0].__location.col;
+        const currentScriptLineOffset = scriptNode.childNodes[0].__location.line - 1; // eslint-disable-line no-underscore-dangle
+        const firstLineCharOffset = scriptNode.childNodes[0].__location.col; // eslint-disable-line no-underscore-dangle
         tokens.forEach((token) => {
           if (!token.loc) {
-            return null;
+            return;
           }
           const mapping = {
             original: {
@@ -179,6 +193,7 @@ class ProcessHtml {
           sourceMapGenerator.addMapping(mapping);
         });
         source += `\n${scriptContents}\n`;
+        // eslint-disable-next-line no-underscore-dangle
         lineOffset += 2 + (scriptNode.__location.endTag.line - scriptNode.__location.startTag.line);
       }
     });
@@ -187,12 +202,14 @@ class ProcessHtml {
     };
     if (sourceMapGenerator) {
       sourceMapGenerator.setSourceContent(this.currentFilePath, this.content);
-      retVal.sourceMap = sourceMapGenerator.toString(); // Actually returns JSON
+      retVal.sourceMap = sourceMapGenerator.toJSON();
     }
     return retVal;
   }
 }
-module.exports = function (content) {
+
+// eslint-disable-next-line no-unused-vars
+export default function entry(content, map) {
   const results = new ProcessHtml(content, this).process();
   this.callback(null, results.source, results.sourceMap);
-};
+}
