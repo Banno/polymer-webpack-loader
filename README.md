@@ -8,7 +8,7 @@ The loader allows you to write mixed HTML, CSS and JavaScript Polymer elements a
 still use the full webpack ecosystem including module bundling and code splitting.
 
 
-<img width="1024" alt="blog - 7" src="https://user-images.githubusercontent.com/1066253/28131928-3b257288-66f0-11e7-8295-cb968cefb040.png">
+<img width="1024" alt="" src="https://user-images.githubusercontent.com/1066253/28131928-3b257288-66f0-11e7-8295-cb968cefb040.png">
 
 The loader transforms your components:
 

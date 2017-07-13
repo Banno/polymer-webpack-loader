@@ -1,6 +1,6 @@
 {
   "name": "polymer-webpack-loader",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "WebPack Loader for Polymer Web Components",
   "main": "dist/cjs.js",
   "scripts": {
@@ -61,7 +61,8 @@
     "webpack-defaults": "^1.5.0"
   },
   "files": [
-    "dist"
+    "dist",
+    "register-html-template.js"
   ],
   "engines": {
     "node": ">= 4.3 < 5.0.0 || >= 5.10"
