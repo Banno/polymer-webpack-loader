@@ -111,21 +111,21 @@ This would expose your index.html file to the polymer-webpack-loader based on th
   <tbody>
     <tr>
       <td align="center">
-        <a href="https://github.com/sapegin">
+        <a href="https://github.com/bryandcoulter">
           <img width="150" height="150" src="https://avatars.githubusercontent.com/u/18359726?v=3">
           </br>
           Bryan Coulter
         </a>
       </td>
       <td align="center">
-        <a href="https://github.com/sapegin">
+        <a href="https://github.com/ChadKillingsworth">
           <img width="150" height="150" src="https://avatars.githubusercontent.com/u/1247639?v=3">
           </br>
           Chad Killingsworth
         </a>
       </td>
       <td align="center">
-        <a href="https://github.com/sapegin">
+        <a href="https://github.com/robdodson">
           <img width="150" height="150" src="https://avatars.githubusercontent.com/u/1066253?v=3">
           </br>
           Rob Dodson
