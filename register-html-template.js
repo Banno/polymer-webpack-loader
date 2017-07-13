@@ -1,6 +1,6 @@
-'use strict';
+/* eslint-env browser */
+
 class RegisterHtmlTemplate {
-  constructor() {}
   /**
    * Create a `<template>` element to hold `<dom-module>` content.
    * This bit of code will execute in the context of the main document,
@@ -11,12 +11,12 @@ class RegisterHtmlTemplate {
    * https://github.com/Polymer/polymer/blob/master/lib/mixins/element-mixin.html#L501-L538
    * @param {string} val A `<dom-module>` as an HTML string
    */
-  register(val) {
+  static register(val) {
     let content;
     const template = document.createElement('template');
     template.innerHTML = val;
     if (template.content) {
-      content = template.content;
+      content = template.content; // eslint-disable-line prefer-destructuring
     } else {
       content = document.createDocumentFragment();
       while (template.firstChild) {
@@ -32,16 +32,16 @@ class RegisterHtmlTemplate {
    * document.
    * @param {string} val An HTML string
    */
-  toBody(val) {
-    val = val.trim();
-    if (val) {
+  static toBody(val) {
+    const trimmedVal = val.trim();
+    if (trimmedVal) {
       const div = document.createElement('div');
-      div.innerHTML = val;
+      div.innerHTML = trimmedVal;
       if (div.firstChild) {
         if (document.body) {
           document.body.insertBefore(div.firstChild, document.body.firstChild);
         } else {
-          document.addEventListener('DOMContentLoaded', (event) => {
+          document.addEventListener('DOMContentLoaded', () => {
             document.body.insertBefore(div.firstChild, document.body.firstChild);
           });
         }
@@ -50,4 +50,4 @@ class RegisterHtmlTemplate {
   }
 }
 
-module.exports = new RegisterHtmlTemplate();
+module.exports = RegisterHtmlTemplate;
