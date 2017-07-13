@@ -33,16 +33,16 @@ jobs:
       node_js: 8
       env: WEBPACK_VERSION=canary JOB_PART=test
 before_install:
-  - 'if [[ `npm -v` != 5* ]]; then npm i -g npm@latest; fi'
+  - 'if [[ `yarn --version` != "0.24."* ]]; then npm install -g yarn@latest; fi'
   - nvm --version
   - node --version
-  - npm --version
+  - yarn --version
 before_script:
   - |-
     if [ "$WEBPACK_VERSION" ]; then
       npm i --no-save webpack@$WEBPACK_VERSION
     fi
 script:
-  - 'npm run travis:$JOB_PART'
+  - 'yarn run travis:$JOB_PART'
 after_success:
   - 'bash <(curl -s https://codecov.io/bash)'
