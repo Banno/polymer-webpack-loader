@@ -13,36 +13,37 @@ jobs:
       stage: Webpack latest
       node_js: 6
       env: WEBPACK_VERSION=latest JOB_PART=test
-      script: yarn run travis:$JOB_PART
+      script: npm run travis:$JOB_PART
     - <<: *test-latest
       node_js: 4.3
       env: WEBPACK_VERSION=latest JOB_PART=test
-      script: yarn run travis:$JOB_PART
+      script: npm run travis:$JOB_PART
     - <<: *test-latest
       node_js: 8
       env: WEBPACK_VERSION=latest JOB_PART=lint
-      script: yarn run travis:$JOB_PART
+      script: npm run travis:$JOB_PART
     - <<: *test-latest
       node_js: 8
       env: WEBPACK_VERSION=latest JOB_PART=coverage
-      script: yarn run travis:$JOB_PART
+      script: npm run travis:$JOB_PART
       after_success: 'bash <(curl -s https://codecov.io/bash)'
     - stage: Webpack canary
-      before_script: yarn add --dev git://github.com/webpack/webpack.git#master
-      script: yarn run travis:$JOB_PART
+      before_script: npm i --no-save git://github.com/webpack/webpack.git#master
+      script: npm run travis:$JOB_PART
       node_js: 8
       env: WEBPACK_VERSION=canary JOB_PART=test
 before_install:
-  - 'if [[ `yarn --version` != "0.2"* ]]; then npm install -g yarn@latest; fi'
+  - rm yarn.lock
+  - 'if [[ `npm -v` != 5* ]]; then npm i -g npm@latest; fi'
   - nvm --version
   - node --version
-  - yarn --version
+  - npm --version
 before_script:
   - |-
     if [ "$WEBPACK_VERSION" ]; then
-      yarn add --dev webpack@$WEBPACK_VERSION
+      npm i --no-save webpack@$WEBPACK_VERSION
     fi
 script:
-  - 'yarn run travis:$JOB_PART'
+  - 'npm run travis:$JOB_PART'
 after_success:
   - 'bash <(curl -s https://codecov.io/bash)'
