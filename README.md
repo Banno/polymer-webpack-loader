@@ -124,6 +124,13 @@ This would expose your index.html file to the polymer-webpack-loader based on th
           Chad Killingsworth
         </a>
       </td>
+      <td align="center">
+        <a href="https://github.com/sapegin">
+          <img width="150" height="150" src="https://avatars.githubusercontent.com/u/1066253?v=3">
+          </br>
+          Rob Dodson
+        </a>
+      </td>
     </tr>
   <tbody>
 </table>
