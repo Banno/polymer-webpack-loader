@@ -194,7 +194,7 @@ class ProcessHtml {
     };
     if (sourceMapGenerator) {
       sourceMapGenerator.setSourceContent(this.currentFilePath, this.content);
-      retVal.sourceMap = sourceMapGenerator.toString(); // Actually returns JSON
+      retVal.sourceMap = sourceMapGenerator.toJSON();
     }
     return retVal;
   }
