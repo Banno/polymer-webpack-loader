@@ -31,7 +31,7 @@
   "bugs": {
     "url": "https://github.com/webpack-contrib/polymer-webpack-loader/issues"
   },
-  "homepage": "https://github.com/webpack-contrib/polymer-webapck-loader#readme",
+  "homepage": "https://github.com/webpack-contrib/polymer-webpack-loader#readme",
   "dependencies": {
     "dom5": "^2.3.0",
     "espree": "^3.4.3",
