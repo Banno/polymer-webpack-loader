@@ -1,6 +1,6 @@
 {
   "name": "polymer-webpack-loader",
-  "version": "1.2.1",
+  "version": "1.2.2",
   "description": "WebPack Loader for Polymer Web Components",
   "main": "dist/cjs.js",
   "scripts": {
