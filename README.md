@@ -22,8 +22,8 @@ The loader transforms your components:
 ```javascript
 {
   test: /\.html$/,  
-  includes: Array (optional),
-  excludes: RegEx (optional),
+  include: Array (optional),
+  exclude: RegExp (optional),
   options: {
     ignoreLinks: Array (optional),
     ignoreLinksFromPartialMatches: Array (optional),
@@ -33,11 +33,11 @@ The loader transforms your components:
 },
 ```
 
-### Includes: Array
+### include: Array
 
 Directories that contain your web components. This will allow you to control where the loader can access files to process. WARNING: If this property exists the loader will only process files that have their parent directory listed. So if you have `<link>` in your components to other directories they MUST be included in this Array.
 
-### Excludes: RegEx
+### exclude: RegExp
 
 A regular expression for files that the loader should exclude. NOTE: Files imported through a `<link>` will not be excluded by this property. See Options.ignoreLinks.
 
