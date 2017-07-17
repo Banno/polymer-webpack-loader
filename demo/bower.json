@@ -1,0 +1,19 @@
+{
+  "name": "polymer-webpack-demo",
+  "private": true,
+  "description": "A hello world example of polymer-webpack-loader.",
+  "authors": [
+    "Rob Dodson"
+  ],
+  "license": "Apache-2.0",
+  "ignore": [
+    "**/.*",
+    "node_modules",
+    "bower_components",
+    "test",
+    "tests"
+  ],
+  "dependencies": {
+    "polymer": "Polymer/polymer#^2.0.1"
+  }
+}
