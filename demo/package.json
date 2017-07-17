@@ -1,0 +1,24 @@
+{
+  "name": "polymer-webpack-demo",
+  "version": "1.0.0",
+  "description": "A hello world example of polymer-webpack-loader.",
+  "scripts": {
+    "start": "webpack-dev-server --open",
+    "build": "webpack"
+  },
+  "author": "Rob Dodson",
+  "license": "Apache-2.0",
+  "devDependencies": {
+    "babel-core": "^6.25.0",
+    "babel-loader": "^7.1.1",
+    "babel-preset-env": "^1.6.0",
+    "copy-webpack-plugin": "^4.0.1",
+    "html-webpack-plugin": "^2.29.0",
+    "polymer-webpack-loader": "^1.2.1",
+    "webpack": "^3.0.0",
+    "webpack-dev-server": "^2.5.0"
+  },
+  "dependencies": {
+    "date-fns": "^1.28.5"
+  }
+}
