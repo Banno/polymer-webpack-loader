@@ -10,7 +10,6 @@ import sourceMap from 'source-map';
 const domPred = predicates.AND(predicates.hasTagName('dom-module'));
 const linkPred = predicates.AND(predicates.hasTagName('link'));
 const scriptsPred = predicates.AND(predicates.hasTagName('script'));
-const windowsPathRegExp = new RegExp('\\\\', 'g');
 
 class ProcessHtml {
   constructor(content, loader) {
@@ -61,7 +60,7 @@ class ProcessHtml {
         const ignoredFromPartial = ignoreLinksFromPartialMatches.filter(partial => href.indexOf(partial) >= 0);
 
         if (ignoreLinks.indexOf(href) < 0 && ignoredFromPartial.length === 0) {
-          source += `\nimport '${path.replace(windowsPathRegExp, '\\\\')}';\n`;
+          source += `\nimport '${path.replace(/\\/g, '\\\\')}';\n`;
           lineCount += 2;
         }
       }
@@ -154,7 +153,7 @@ RegisterHtmlTemplate.toBody('${minimized.replace(/'/g, "\\'")}');
         const parseSrc = url.parse(src);
         if (!parseSrc.protocol || !parseSrc.slashes) {
           const path = osPath.join(osPath.dirname(this.currentFilePath), src);
-          source += `\nimport '${path.replace(windowsPathRegExp, '\\\\')}';\n`;
+          source += `\nimport '${path.replace(/\\/g, '\\\\')}';\n`;
           lineOffset += 2;
         }
       } else {
