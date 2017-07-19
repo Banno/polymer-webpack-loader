@@ -1,0 +1,101 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`loader can process basic input 1`] = `
+"
+const RegisterHtmlTemplate = require('polymer-webpack-loader/register-html-template');
+RegisterHtmlTemplate.toBody('<div></div>');
+"
+`;
+
+exports[`loader can process without options 1`] = `
+"
+const RegisterHtmlTemplate = require('polymer-webpack-loader/register-html-template');
+RegisterHtmlTemplate.toBody('<div></div>');
+"
+`;
+
+exports[`loader domModule adds to body if no dom-module 1`] = `
+"
+const RegisterHtmlTemplate = require('polymer-webpack-loader/register-html-template');
+RegisterHtmlTemplate.toBody('<span></span>');
+"
+`;
+
+exports[`loader domModule ignores invalid HTML 1`] = `""`;
+
+exports[`loader domModule removes link tags 1`] = `
+"
+import 'src/test.html';
+
+const RegisterHtmlTemplate = require('polymer-webpack-loader/register-html-template');
+RegisterHtmlTemplate.register('<dom-module id=\\"x-foo\\"></dom-module>');
+"
+`;
+
+exports[`loader domModule removes script tags without a protocol 1`] = `
+"
+const RegisterHtmlTemplate = require('polymer-webpack-loader/register-html-template');
+RegisterHtmlTemplate.register('<dom-module id=\\"x-foo\\"></dom-module>');
+
+import 'src/foo.js';
+"
+`;
+
+exports[`loader domModule removes script tags without a source 1`] = `
+"
+const RegisterHtmlTemplate = require('polymer-webpack-loader/register-html-template');
+RegisterHtmlTemplate.register('<dom-module id=\\"x-foo\\"></dom-module>');
+
+var x = 1;
+"
+`;
+
+exports[`loader domModule transforms dom-modules 1`] = `
+"
+const RegisterHtmlTemplate = require('polymer-webpack-loader/register-html-template');
+RegisterHtmlTemplate.register('<dom-module id=\\"x-foo\\"><div></div></dom-module>');
+"
+`;
+
+exports[`loader links ignoreLinks option 1`] = `
+"
+import 'src/foofoo.html';
+"
+`;
+
+exports[`loader links ignoreLinksFromPartialMatches option 1`] = `""`;
+
+exports[`loader links ignorePathReWrite option 1`] = `
+"
+import 'foo.html';
+
+import 'foofoo.html';
+"
+`;
+
+exports[`loader links ignores links with invalid href 1`] = `""`;
+
+exports[`loader links transforms links 1`] = `
+"
+import 'src/foo.html';
+"
+`;
+
+exports[`loader scripts maintains external scripts 1`] = `
+"
+const RegisterHtmlTemplate = require('polymer-webpack-loader/register-html-template');
+RegisterHtmlTemplate.toBody('<script src=\\"http://example.com/test.js\\"></script>');
+"
+`;
+
+exports[`loader scripts maintains inline scripts 1`] = `
+"
+var x = 5;
+"
+`;
+
+exports[`loader scripts transforms scripts with a source into imports 1`] = `
+"
+import 'src/foo.js';
+"
+`;
