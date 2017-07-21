@@ -57,10 +57,17 @@ describe('loader', () => {
     });
 
     test('ignoreLinks option', () => {
-      opts.query.ignoreLinks = ['foo.html'];
+      opts.query.ignoreLinks = [
+        'foo.html',
+        '/bar',
+        /node_modules/,
+      ];
 
       loader.call(opts, '<link rel="import" href="foo.html">' +
-        '<link rel="import" href="foofoo.html">');
+        '<link rel="import" href="foofoo.html">' +
+        '<link rel="import" href="/bar/foo.html">' +
+        '<link rel="import" href="../../node_modules/some-module/some-element.html">',
+      );
 
       const [call] = opts.callback.mock.calls;
       expect(call[0]).toBe(null);
