@@ -40,10 +40,7 @@ module.exports = {
       {
         // If you see a file that ends in .js, just send it to the babel-loader.
         test: /\.js$/,
-        use: 'babel-loader',
-        // This line tells Webpack not to transpile .js files coming out of
-        // node_modules.
-        exclude: /node_modules/
+        use: 'babel-loader'
       }
     ]
   },
