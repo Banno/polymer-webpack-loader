@@ -1,10 +1,11 @@
 import osPath from 'path';
 import url from 'url';
 import { getAttribute, predicates, query, queryAll, remove, removeFakeRootElements } from 'dom5';
-import loaderUtils from 'loader-utils';
-import { minify } from 'html-minifier';
-import parse5 from 'parse5';
+import { getOptions, stringifyRequest } from 'loader-utils';
 import espree from 'espree';
+import { minify } from 'html-minifier';
+import { normalizeCondition } from 'webpack/lib/RuleSet';
+import parse5 from 'parse5';
 import sourceMap from 'source-map';
 
 const domPred = predicates.AND(predicates.hasTagName('dom-module'));
@@ -14,7 +15,7 @@ const scriptsPred = predicates.AND(predicates.hasTagName('script'));
 class ProcessHtml {
   constructor(content, loader) {
     this.content = content;
-    this.options = loaderUtils.getOptions(loader) || {};
+    this.options = getOptions(loader) || {};
     this.currentFilePath = loader.resourcePath;
   }
   /**
@@ -31,8 +32,10 @@ class ProcessHtml {
    * e.g.
    * ```
    * <link rel="import" href="paper-input/paper-input.html">
+   * ```
    * becomes:
-   * import 'paper-input/paper-input.html';
+   * ```
+   * import '/absolute/path/to/paper-input/paper-input.html';
    * ```
    * @return {{source: string, lineCount: number}}
    */
@@ -42,28 +45,49 @@ class ProcessHtml {
     const links = queryAll(doc, linkPred);
 
     let source = '';
-    const ignoreLinks = this.options.ignoreLinks || [];
-    const ignoreLinksFromPartialMatches = this.options.ignoreLinksFromPartialMatches || [];
-    const ignorePathReWrites = this.options.ignorePathReWrite || [];
+
+    // A function to test an href against options.ignoreLinks and options.ignoreLinksFromPartialMatches
+    let shouldIgnore;
+    let ignoreConditions = [];
+    if (this.options.ignoreLinks) {
+      ignoreConditions = ignoreConditions.concat(this.options.ignoreLinks);
+    }
+    if (this.options.ignoreLinksFromPartialMatches) {
+      const partials = this.options.ignoreLinksFromPartialMatches;
+      ignoreConditions = ignoreConditions.concat(resource =>
+        partials.some(partial => resource.indexOf(partial) > -1));
+    }
+
+    if (ignoreConditions.length > 0) {
+      shouldIgnore = normalizeCondition(ignoreConditions);
+    } else {
+      shouldIgnore = () => false;
+    }
+
+    // A function to test an href against options.ignorePathReWrite
+    let shouldRewrite;
+    if (this.options.ignorePathReWrite) {
+      shouldRewrite = normalizeCondition({ not: this.options.ignorePathReWrite });
+    } else {
+      shouldRewrite = () => true;
+    }
+
     let lineCount = 0;
     links.forEach((linkNode) => {
-      const href = getAttribute(linkNode, 'href') || '';
-      let path = '';
-      if (href) {
-        const checkIgnorePaths = ignorePathReWrites.filter(ignorePath => href.indexOf(ignorePath) >= 0);
-        if (checkIgnorePaths.length === 0) {
-          path = osPath.join(osPath.dirname(this.currentFilePath), href);
-        } else {
-          path = href;
-        }
-
-        const ignoredFromPartial = ignoreLinksFromPartialMatches.filter(partial => href.indexOf(partial) >= 0);
-
-        if (ignoreLinks.indexOf(href) < 0 && ignoredFromPartial.length === 0) {
-          source += `\nimport '${path.replace(/\\/g, '\\\\')}';\n`;
-          lineCount += 2;
-        }
+      const href = getAttribute(linkNode, 'href');
+      if (!href || shouldIgnore(href)) {
+        return;
       }
+
+      let path;
+      if (shouldRewrite(href)) {
+        path = osPath.join(osPath.dirname(this.currentFilePath), href);
+      } else {
+        path = href;
+      }
+
+      source += `\nimport ${stringifyRequest(this, path)};\n`;
+      lineCount += 2;
     });
     return {
       source,
@@ -107,7 +131,7 @@ class ProcessHtml {
         return {
           source: `
 const RegisterHtmlTemplate = require('polymer-webpack-loader/register-html-template');
-RegisterHtmlTemplate.register('${minimized.replace(/'/g, "\\'")}');
+RegisterHtmlTemplate.register(${JSON.stringify(minimized)});
 `,
           lineCount: 3,
         };
@@ -115,7 +139,7 @@ RegisterHtmlTemplate.register('${minimized.replace(/'/g, "\\'")}');
       return {
         source: `
 const RegisterHtmlTemplate = require('polymer-webpack-loader/register-html-template');
-RegisterHtmlTemplate.toBody('${minimized.replace(/'/g, "\\'")}');
+RegisterHtmlTemplate.toBody(${JSON.stringify(minimized)});
 `,
         lineCount: 3,
       };
@@ -153,7 +177,7 @@ RegisterHtmlTemplate.toBody('${minimized.replace(/'/g, "\\'")}');
         const parseSrc = url.parse(src);
         if (!parseSrc.protocol || !parseSrc.slashes) {
           const path = osPath.join(osPath.dirname(this.currentFilePath), src);
-          source += `\nimport '${path.replace(/\\/g, '\\\\')}';\n`;
+          source += `\nimport ${stringifyRequest(this, path)};\n`;
           lineOffset += 2;
         }
       } else {
