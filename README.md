@@ -21,9 +21,9 @@ The loader transforms your components:
  
  Any ```<link>``` "href" or ```<script>``` "src" that is **not an external link** and does not start with ```~```, ```/```, ```./``` or a series of ```../``` will have ```./``` appended to the beginning of the value. To prevent this change use options ignoreLinks below. 
 
-Example
+## Path Translations
 
-| `tag:`                            | `import:`                        |
+| `tag`                            | `import`                        |
 | ----------------------------------- | ------------------------------------- |
 | `<link rel="import" href="path/to/some-element.html">`     | `import "./path/to/some-element.html"`  |
 | `<link rel="import" href="/path/to/some-element.html">`    | `import "/path/to/some-element.html"`   |
