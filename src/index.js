@@ -1,4 +1,3 @@
-import osPath from 'path';
 import url from 'url';
 import { getAttribute, predicates, query, queryAll, remove, removeFakeRootElements } from 'dom5';
 import loaderUtils from 'loader-utils';
@@ -61,7 +60,7 @@ class ProcessHtml {
         const parseLink = url.parse(href);
         const isExternalLink = parseLink.protocol || parseLink.slashes;
         if (ignoreLinks.indexOf(href) < 0 && ignoredFromPartial.length === 0 && !isExternalLink) {
-          source += `\nimport '${path.replace(/\\/g, '\\\\')}';\n`;
+          source += `\nimport '${path}';\n`;
           lineCount += 2;
         }
       }
@@ -158,8 +157,8 @@ RegisterHtmlTemplate.toBody('${minimized.replace(/'/g, "\\'")}');
       if (src) {
         const parseSrc = url.parse(src);
         if (!parseSrc.protocol || !parseSrc.slashes) {
-          const path = osPath.join(osPath.dirname(this.currentFilePath), src);
-          source += `\nimport '${path.replace(/\\/g, '\\\\')}';\n`;
+          const path = ProcessHtml.checkPath(src);
+          source += `\nimport '${path}';\n`;
           lineOffset += 2;
         }
       } else {
