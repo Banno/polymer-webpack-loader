@@ -1,4 +1,3 @@
-import osPath from 'path';
 import url from 'url';
 import { getAttribute, predicates, query, queryAll, remove, removeFakeRootElements } from 'dom5';
 import loaderUtils from 'loader-utils';
@@ -52,15 +51,16 @@ class ProcessHtml {
       if (href) {
         const checkIgnorePaths = ignorePathReWrites.filter(ignorePath => href.indexOf(ignorePath) >= 0);
         if (checkIgnorePaths.length === 0) {
-          path = osPath.join(osPath.dirname(this.currentFilePath), href);
+          path = ProcessHtml.checkPath(href);
         } else {
           path = href;
         }
 
         const ignoredFromPartial = ignoreLinksFromPartialMatches.filter(partial => href.indexOf(partial) >= 0);
-
-        if (ignoreLinks.indexOf(href) < 0 && ignoredFromPartial.length === 0) {
-          source += `\nimport '${path.replace(/\\/g, '\\\\')}';\n`;
+        const parseLink = url.parse(href);
+        const isExternalLink = parseLink.protocol || parseLink.slashes;
+        if (ignoreLinks.indexOf(href) < 0 && ignoredFromPartial.length === 0 && !isExternalLink) {
+          source += `\nimport '${path}';\n`;
           lineCount += 2;
         }
       }
@@ -93,7 +93,12 @@ class ProcessHtml {
     });
     const links = queryAll(doc, linkPred);
     links.forEach((linkNode) => {
-      remove(linkNode);
+      const href = getAttribute(linkNode, 'href') || '';
+      const parseLink = url.parse(href);
+      const isExternalLink = parseLink.protocol || parseLink.slashes;
+      if (!isExternalLink) {
+        remove(linkNode);
+      }
     });
     const html = domModule ? domModule.parentNode : doc;
     const minimized = minify(parse5.serialize(html), {
@@ -152,8 +157,8 @@ RegisterHtmlTemplate.toBody('${minimized.replace(/'/g, "\\'")}');
       if (src) {
         const parseSrc = url.parse(src);
         if (!parseSrc.protocol || !parseSrc.slashes) {
-          const path = osPath.join(osPath.dirname(this.currentFilePath), src);
-          source += `\nimport '${path.replace(/\\/g, '\\\\')}';\n`;
+          const path = ProcessHtml.checkPath(src);
+          source += `\nimport '${path}';\n`;
           lineOffset += 2;
         }
       } else {
@@ -205,6 +210,11 @@ RegisterHtmlTemplate.toBody('${minimized.replace(/'/g, "\\'")}');
       retVal.sourceMap = sourceMapGenerator.toJSON();
     }
     return retVal;
+  }
+
+  static checkPath(path) {
+    const needsAdjusted = /^[A-Za-z]{1}/.test(path);
+    return needsAdjusted ? `./${path}` : path;
   }
 }
 
