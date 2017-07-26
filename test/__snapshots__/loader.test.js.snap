@@ -25,7 +25,7 @@ exports[`loader domModule ignores invalid HTML 1`] = `""`;
 
 exports[`loader domModule removes link tags 1`] = `
 "
-import 'src/test.html';
+import './test.html';
 
 const RegisterHtmlTemplate = require('polymer-webpack-loader/register-html-template');
 RegisterHtmlTemplate.register('<dom-module id=\\"x-foo\\"></dom-module>');
@@ -37,7 +37,7 @@ exports[`loader domModule removes script tags without a protocol 1`] = `
 const RegisterHtmlTemplate = require('polymer-webpack-loader/register-html-template');
 RegisterHtmlTemplate.register('<dom-module id=\\"x-foo\\"></dom-module>');
 
-import 'src/foo.js';
+import './foo.js';
 "
 `;
 
@@ -59,7 +59,7 @@ RegisterHtmlTemplate.register('<dom-module id=\\"x-foo\\"><div></div></dom-modul
 
 exports[`loader links ignoreLinks option 1`] = `
 "
-import 'src/foofoo.html';
+import './foofoo.html';
 "
 `;
 
@@ -77,7 +77,7 @@ exports[`loader links ignores links with invalid href 1`] = `""`;
 
 exports[`loader links transforms links 1`] = `
 "
-import 'src/foo.html';
+import './foo.html';
 "
 `;
 
@@ -96,6 +96,6 @@ var x = 5;
 
 exports[`loader scripts transforms scripts with a source into imports 1`] = `
 "
-import 'src/foo.js';
+import './foo.js';
 "
 `;
