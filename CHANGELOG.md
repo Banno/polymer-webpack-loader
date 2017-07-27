@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+1.2.5 / 2017-07-27
+==================
+
+  * Bug - Special characters where not being escaped correctly in the html
+
 1.2.4 / 2017-07-25
 ==================
 
