@@ -3,21 +3,21 @@
 exports[`loader can process basic input 1`] = `
 "
 const RegisterHtmlTemplate = require('polymer-webpack-loader/register-html-template');
-RegisterHtmlTemplate.toBody('<div></div>');
+RegisterHtmlTemplate.toBody(\\"<div></div>\\");
 "
 `;
 
 exports[`loader can process without options 1`] = `
 "
 const RegisterHtmlTemplate = require('polymer-webpack-loader/register-html-template');
-RegisterHtmlTemplate.toBody('<div></div>');
+RegisterHtmlTemplate.toBody(\\"<div></div>\\");
 "
 `;
 
 exports[`loader domModule adds to body if no dom-module 1`] = `
 "
 const RegisterHtmlTemplate = require('polymer-webpack-loader/register-html-template');
-RegisterHtmlTemplate.toBody('<span></span>');
+RegisterHtmlTemplate.toBody(\\"<span></span>\\");
 "
 `;
 
@@ -28,14 +28,14 @@ exports[`loader domModule removes link tags 1`] = `
 import './test.html';
 
 const RegisterHtmlTemplate = require('polymer-webpack-loader/register-html-template');
-RegisterHtmlTemplate.register('<dom-module id=\\"x-foo\\"></dom-module>');
+RegisterHtmlTemplate.register(\\"<dom-module id=\\\\\\"x-foo\\\\\\"></dom-module>\\");
 "
 `;
 
 exports[`loader domModule removes script tags without a protocol 1`] = `
 "
 const RegisterHtmlTemplate = require('polymer-webpack-loader/register-html-template');
-RegisterHtmlTemplate.register('<dom-module id=\\"x-foo\\"></dom-module>');
+RegisterHtmlTemplate.register(\\"<dom-module id=\\\\\\"x-foo\\\\\\"></dom-module>\\");
 
 import './foo.js';
 "
@@ -44,7 +44,7 @@ import './foo.js';
 exports[`loader domModule removes script tags without a source 1`] = `
 "
 const RegisterHtmlTemplate = require('polymer-webpack-loader/register-html-template');
-RegisterHtmlTemplate.register('<dom-module id=\\"x-foo\\"></dom-module>');
+RegisterHtmlTemplate.register(\\"<dom-module id=\\\\\\"x-foo\\\\\\"></dom-module>\\");
 
 var x = 1;
 "
@@ -53,7 +53,7 @@ var x = 1;
 exports[`loader domModule transforms dom-modules 1`] = `
 "
 const RegisterHtmlTemplate = require('polymer-webpack-loader/register-html-template');
-RegisterHtmlTemplate.register('<dom-module id=\\"x-foo\\"><div></div></dom-module>');
+RegisterHtmlTemplate.register(\\"<dom-module id=\\\\\\"x-foo\\\\\\"><div></div></dom-module>\\");
 "
 `;
 
@@ -84,7 +84,7 @@ import './foo.html';
 exports[`loader scripts maintains external scripts 1`] = `
 "
 const RegisterHtmlTemplate = require('polymer-webpack-loader/register-html-template');
-RegisterHtmlTemplate.toBody('<script src=\\"http://example.com/test.js\\"></script>');
+RegisterHtmlTemplate.toBody(\\"<script src=\\\\\\"http://example.com/test.js\\\\\\"></script>\\");
 "
 `;
 

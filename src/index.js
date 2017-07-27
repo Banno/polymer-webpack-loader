@@ -112,7 +112,7 @@ class ProcessHtml {
         return {
           source: `
 const RegisterHtmlTemplate = require('polymer-webpack-loader/register-html-template');
-RegisterHtmlTemplate.register('${minimized.replace(/'/g, "\\'")}');
+RegisterHtmlTemplate.register(${JSON.stringify(minimized)});
 `,
           lineCount: 3,
         };
@@ -120,7 +120,7 @@ RegisterHtmlTemplate.register('${minimized.replace(/'/g, "\\'")}');
       return {
         source: `
 const RegisterHtmlTemplate = require('polymer-webpack-loader/register-html-template');
-RegisterHtmlTemplate.toBody('${minimized.replace(/'/g, "\\'")}');
+RegisterHtmlTemplate.toBody(${JSON.stringify(minimized)});
 `,
         lineCount: 3,
       };
