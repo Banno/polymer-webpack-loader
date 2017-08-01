@@ -26,12 +26,12 @@ class ProcessHtml {
     return this.scripts(links.source + doms.source, links.lineCount + doms.lineCount);
   }
   /**
-   * Look for all `<link>` elements and turn them into `import` statements.
+   * Look for all `<link>` elements and turn them into `require` statements.
    * e.g.
    * ```
    * <link rel="import" href="paper-input/paper-input.html">
    * becomes:
-   * import 'paper-input/paper-input.html';
+   * require('paper-input/paper-input.html');
    * ```
    * @return {{source: string, lineCount: number}}
    */
@@ -60,7 +60,7 @@ class ProcessHtml {
         const parseLink = url.parse(href);
         const isExternalLink = parseLink.protocol || parseLink.slashes;
         if (ignoreLinks.indexOf(href) < 0 && ignoredFromPartial.length === 0 && !isExternalLink) {
-          source += `\nimport '${path}';\n`;
+          source += `\nrequire('${path}');\n`;
           lineCount += 2;
         }
       }
@@ -132,12 +132,12 @@ RegisterHtmlTemplate.toBody(${JSON.stringify(minimized)});
   }
   /**
    * Look for all `<script>` elements. If the script has a valid `src` attribute
-   * it will be converted to an `import` statement.
+   * it will be converted to a `require` statement.
    * e.g.
    * ```
    * <script src="foo.js">
    * becomes:
-   * import 'foo';
+   * require('foo');
    * ```
    * Otherwise if it's an inline script block, the content will be serialized
    * and returned as part of the bundle.
@@ -158,7 +158,7 @@ RegisterHtmlTemplate.toBody(${JSON.stringify(minimized)});
         const parseSrc = url.parse(src);
         if (!parseSrc.protocol || !parseSrc.slashes) {
           const path = ProcessHtml.checkPath(src);
-          source += `\nimport '${path}';\n`;
+          source += `\nrequire('${path}');\n`;
           lineOffset += 2;
         }
       } else {
