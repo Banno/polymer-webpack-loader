@@ -19,6 +19,7 @@ class ProcessHtml {
     this.options = loaderUtils.getOptions(loader) || {};
     this.currentFilePath = loader.resourcePath;
   }
+
   /**
    * Process `<link>` tags, `<dom-module>` elements, and any `<script>`'s.
    * Return transformed content as a bundle for webpack.
@@ -78,10 +79,11 @@ class ProcessHtml {
       sourceMap: scriptsSource.sourceMap,
     };
   }
+
   /**
    * Process an array of ```<link>``` to determine if each needs to be ```require``` statement or ignored.
    *
-   * @param {Array<HtmlElements>} links
+   * @param {Array<HTMLElement>} links
    * @return {string}
    */
   links(links) {
@@ -113,7 +115,7 @@ class ProcessHtml {
    * Process an array of ```<script>``` to determine if each needs to be a ```require``` statement
    * or have its contents written to the webpack module
    *
-   * @param {Array[HtmlElements]} scripts
+   * @param {Array<HTMLElement>} scripts
    * @param {number} initialLineCount
    * @return {{source: string, sourceMap: (Object|undefined)}}
    */
@@ -181,7 +183,7 @@ class ProcessHtml {
   /**
    * Generates required runtime source for the HtmlElements that need to be registered
    * either in the body or as document fragments on the document.
-   * @param {Array<HtmlElements>} nodes
+   * @param {Array<HTMLElement>} nodes
    * @param {RuntimeRegistrationType} type
    * @return {string}
    */
@@ -219,12 +221,12 @@ RegisterHtmlTemplate.${registrationMethod}(${JSON.stringify(minimized)});
    * <link href="http://www.example.com/main.html">
    * returns: true
    * ```
-   * @param {HtmlElement} node
-   * @param {HtmlElement} pathType src or href
+   * @param {HTMLElement} node
+   * @param {string} attributeName src or href
    * @return {boolean}
    */
-  static isExternalPath(node, pathType) {
-    const path = getAttribute(node, pathType) || '';
+  static isExternalPath(node, attributeName) {
+    const path = getAttribute(node, attributeName) || '';
     const parseLink = url.parse(path);
     return parseLink.protocol || parseLink.slashes;
   }
@@ -238,7 +240,7 @@ RegisterHtmlTemplate.${registrationMethod}(${JSON.stringify(minimized)});
    * <link rel="stylesheet" href="...">
    * returns: true
    * ```
-   * @param {HtmlElement} node
+   * @param {HTMLElement} node
    * @return {boolean}
    */
   static isCSSLink(node) {
