@@ -241,7 +241,12 @@ describe('loader', () => {
     });
 
     test('maintains inline scripts', () => {
-      loader.call(opts, '<script>var x = 5;</script>');
+      loader.call(opts, `<script>var x = 5;
+        function foobar(arg) {
+          var y = 6;
+        
+        }
+      </script>`);
 
       const [call] = opts.callback.mock.calls;
       expect(call[0]).toBe(null);
