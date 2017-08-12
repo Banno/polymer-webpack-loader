@@ -1,8 +1,25 @@
 /* eslint no-undefined: "off", no-useless-escape: "off" */
 
+import sourceMap from 'source-map';
 import loader from '../src';
 
 const normalisePaths = result => result.replace('src\\\\', 'src/');
+
+function verifySourceMap(generatedSource, map) {
+  const consumer = sourceMap.SourceMapConsumer(map);
+  consumer.eachMapping((mapping) => {
+    if (!mapping.name) {
+      return;
+    }
+    const originalSourceByLine = consumer.sourceContentFor(mapping.source).split('\n');
+    const generatedSourceByLine = generatedSource.split('\n');
+
+    expect(generatedSourceByLine[mapping.generatedLine - 1].substr(mapping.generatedColumn, mapping.name.length))
+      .toBe(mapping.name);
+    expect(originalSourceByLine[mapping.originalLine - 1].substr(mapping.originalColumn, mapping.name.length))
+      .toBe(mapping.name);
+  });
+}
 
 describe('loader', () => {
   let opts;
@@ -151,6 +168,7 @@ describe('loader', () => {
       expect(call[0]).toBe(null);
       expect(normalisePaths(call[1])).toMatchSnapshot();
       expect(call[2]).not.toBe(undefined);
+      verifySourceMap(call[1], call[2]);
     });
 
     test('removes script tags without a protocol', () => {
@@ -229,6 +247,7 @@ describe('loader', () => {
       expect(call[0]).toBe(null);
       expect(normalisePaths(call[1])).toMatchSnapshot();
       expect(call[2]).not.toBe(undefined);
+      verifySourceMap(call[1], call[2]);
     });
   });
 });

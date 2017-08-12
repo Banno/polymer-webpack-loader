@@ -140,7 +140,7 @@ class ProcessHtml {
         // line number of the script tag itself. And for the first line, offset the start
         // column to account for the <script> tag itself.
         const currentScriptLineOffset = scriptNode.childNodes[0].__location.line - 1; // eslint-disable-line no-underscore-dangle
-        const firstLineCharOffset = scriptNode.childNodes[0].__location.col; // eslint-disable-line no-underscore-dangle
+        const firstLineCharOffset = scriptNode.childNodes[0].__location.col - 1; // eslint-disable-line no-underscore-dangle
         tokens.forEach((token) => {
           if (!token.loc) {
             return;
