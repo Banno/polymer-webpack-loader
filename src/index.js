@@ -3,8 +3,15 @@ import { getAttribute, remove, removeFakeRootElements } from 'dom5';
 import loaderUtils from 'loader-utils';
 import { minify } from 'html-minifier';
 import parse5 from 'parse5';
-// import espree from 'espree';
-// import sourceMap from 'source-map';
+import espree from 'espree';
+import sourceMap from 'source-map';
+
+/** @enum {number} */
+const RuntimeRegistrationType = {
+  DOM_MODULE: 0,
+  BODY: 1,
+};
+
 /* eslint class-methods-use-this: ["error", { "exceptMethods": ["scripts"] }] */
 class ProcessHtml {
   constructor(content, loader) {
@@ -53,34 +60,35 @@ class ProcessHtml {
         }
       }
     }
-
-
-    const links = this.links(linksArray);
-    const scripts = this.scripts(scriptsArray);
-    const toBody = ProcessHtml.buildRuntimeSource(toBodyArray, 'toBody');
-
     scriptsArray.forEach((scriptNode) => {
       remove(scriptNode);
     });
-    const domModules = ProcessHtml.buildRuntimeSource(domModuleArray, 'register');
-    const addRegisterImport = (toBodyArray.length > 0 || domModuleArray.length > 0) ? '\nconst RegisterHtmlTemplate = require(\'polymer-webpack-loader/register-html-template\');\n' : '';
 
-    const source = links.source + addRegisterImport + domModules.source + toBody.source + scripts.source;
-    const sourceMap = '';
-    return { source, sourceMap };
+    let source = this.links(linksArray);
+    if (toBodyArray.length > 0 || domModuleArray.length > 0) {
+      source += '\nconst RegisterHtmlTemplate = require(\'polymer-webpack-loader/register-html-template\');\n';
+      source += ProcessHtml.buildRuntimeSource(toBodyArray, RuntimeRegistrationType.BODY);
+      source += ProcessHtml.buildRuntimeSource(domModuleArray, RuntimeRegistrationType.DOM_MODULE);
+    }
+    const scriptsSource = this.scripts(scriptsArray, source.split('\n').length);
+    source += scriptsSource.source;
+
+    return {
+      source,
+      sourceMap: scriptsSource.sourceMap,
+    };
   }
   /**
    * Process an array of ```<link>``` to determine if each needs to be ```require``` statement or ignored.
-   * 
-   * @param {Array[HtmlElements]} links
-   * @return {{source: string, lineCount: number}}
+   *
+   * @param {Array<HtmlElements>} links
+   * @return {string}
    */
   links(links) {
     let source = '';
     const ignoreLinks = this.options.ignoreLinks || [];
     const ignoreLinksFromPartialMatches = this.options.ignoreLinksFromPartialMatches || [];
     const ignorePathReWrites = this.options.ignorePathReWrite || [];
-    let lineCount = 0;
     links.forEach((linkNode) => {
       const href = getAttribute(linkNode, 'href') || '';
       let path = '';
@@ -95,25 +103,23 @@ class ProcessHtml {
         const ignoredFromPartial = ignoreLinksFromPartialMatches.filter(partial => href.indexOf(partial) >= 0);
         if (ignoreLinks.indexOf(href) < 0 && ignoredFromPartial.length === 0) {
           source += `\nrequire('${path}');\n`;
-          lineCount += 2;
         }
       }
     });
-    return {
-      source,
-      lineCount,
-    };
+    return source;
   }
+
   /**
    * Process an array of ```<script>``` to determine if each needs to be a ```require``` statement
    * or have its contents written to the webpack module
-   * 
+   *
    * @param {Array[HtmlElements]} scripts
-   * @return {{source: string, lineCount: number}}
+   * @param {number} initialLineCount
+   * @return {{source: string, sourceMap: (Object|undefined)}}
    */
-  scripts(scripts) {
-    // const sourceMapGenerator = null;
-    let lineCount = 0;
+  scripts(scripts, initialLineCount) {
+    let sourceMapGenerator = null;
+    let lineCount = initialLineCount;
     let source = '';
     scripts.forEach((scriptNode) => {
       const src = getAttribute(scriptNode, 'src') || '';
@@ -123,7 +129,6 @@ class ProcessHtml {
         lineCount += 2;
       } else {
         const scriptContents = parse5.serialize(scriptNode);
-        /*
         sourceMapGenerator = sourceMapGenerator || new sourceMap.SourceMapGenerator();
         const tokens = espree.tokenize(scriptContents, {
           loc: true,
@@ -158,27 +163,31 @@ class ProcessHtml {
 
           sourceMapGenerator.addMapping(mapping);
         });
-        */
         source += `\n${scriptContents}\n`;
         // eslint-disable-next-line no-underscore-dangle
         lineCount += 2 + (scriptNode.__location.endTag.line - scriptNode.__location.startTag.line);
       }
     });
-    return {
+    const retVal = {
       source,
-      lineCount,
     };
+    if (sourceMapGenerator) {
+      sourceMapGenerator.setSourceContent(this.currentFilePath, this.content);
+      retVal.sourceMap = sourceMapGenerator.toJSON();
+    }
+    return retVal;
   }
+
   /**
    * Generates required runtime source for the HtmlElements that need to be registered
    * either in the body or as document fragments on the document.
-   * @param {Array[HtmlElements]} nodes
-   * @param {HtmlElement} type register or toBody
-   * @return {{source: string, lineCount: number}}
+   * @param {Array<HtmlElements>} nodes
+   * @param {RuntimeRegistrationType} type
+   * @return {string}
    */
   static buildRuntimeSource(nodes, type) {
-    let lineCount = 0;
     let source = '';
+    const registrationMethod = type === RuntimeRegistrationType.BODY ? 'toBody' : 'register';
     nodes.forEach((node) => {
       // need to create an object with a childNodes array so parse5.serialize
       // will return the actual node and not just it's child nodes.
@@ -194,16 +203,13 @@ class ProcessHtml {
       });
 
       source += `
-RegisterHtmlTemplate.${type}(${JSON.stringify(minimized)});
+RegisterHtmlTemplate.${registrationMethod}(${JSON.stringify(minimized)});
 `;
-      lineCount += 2;
     });
 
-    return {
-      source,
-      lineCount,
-    };
+    return source;
   }
+
   /**
    * Look to see if the HtmlElement has an external src/href as an attribute
    * e.g.
@@ -222,6 +228,7 @@ RegisterHtmlTemplate.${type}(${JSON.stringify(minimized)});
     const parseLink = url.parse(path);
     return parseLink.protocol || parseLink.slashes;
   }
+
   /**
    * Checks to see if the passed node is css ```<link>```
    * e.g.
@@ -234,12 +241,12 @@ RegisterHtmlTemplate.${type}(${JSON.stringify(minimized)});
    * @param {HtmlElement} node
    * @return {boolean}
    */
-
   static isCSSLink(node) {
     const rel = getAttribute(node, 'rel') || '';
     const type = getAttribute(node, 'type') || '';
     return rel === 'stylesheet' || type === 'css';
   }
+
   /**
    * Ensure that a path not starting with a relative path identifer gets ```./``` prepended
    * e.g.

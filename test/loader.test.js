@@ -21,7 +21,7 @@ describe('loader', () => {
     const [call] = opts.callback.mock.calls;
     expect(call[0]).toBe(null);
     expect(normalisePaths(call[1])).toMatchSnapshot();
-    expect(call[2]).toBe('');
+    expect(call[2]).toBe(undefined);
   });
 
   test('can process without options', () => {
@@ -33,7 +33,7 @@ describe('loader', () => {
 
     expect(call[0]).toBe(null);
     expect(normalisePaths(call[1])).toMatchSnapshot();
-    expect(call[2]).toBe('');
+    expect(call[2]).toBe(undefined);
   });
 
   describe('links', () => {
@@ -43,7 +43,7 @@ describe('loader', () => {
       const [call] = opts.callback.mock.calls;
       expect(call[0]).toBe(null);
       expect(normalisePaths(call[1])).toMatchSnapshot();
-      expect(call[2]).toBe('');
+      expect(call[2]).toBe(undefined);
     });
 
     test('ignores links with invalid href', () => {
@@ -52,7 +52,7 @@ describe('loader', () => {
       const [call] = opts.callback.mock.calls;
       expect(call[0]).toBe(null);
       expect(normalisePaths(call[1])).toMatchSnapshot();
-      expect(call[2]).toBe('');
+      expect(call[2]).toBe(undefined);
     });
 
     test('ignoreLinks option', () => {
@@ -64,7 +64,7 @@ describe('loader', () => {
       const [call] = opts.callback.mock.calls;
       expect(call[0]).toBe(null);
       expect(normalisePaths(call[1])).toMatchSnapshot();
-      expect(call[2]).toBe('');
+      expect(call[2]).toBe(undefined);
     });
 
     test('ignoreLinksFromPartialMatches option', () => {
@@ -76,7 +76,7 @@ describe('loader', () => {
       const [call] = opts.callback.mock.calls;
       expect(call[0]).toBe(null);
       expect(normalisePaths(call[1])).toMatchSnapshot();
-      expect(call[2]).toBe('');
+      expect(call[2]).toBe(undefined);
     });
 
     test('ignorePathReWrite option', () => {
@@ -88,7 +88,7 @@ describe('loader', () => {
       const [call] = opts.callback.mock.calls;
       expect(call[0]).toBe(null);
       expect(normalisePaths(call[1])).toMatchSnapshot();
-      expect(call[2]).toBe('');
+      expect(call[2]).toBe(undefined);
     });
   });
 
@@ -100,7 +100,7 @@ describe('loader', () => {
       const [call] = opts.callback.mock.calls;
       expect(call[0]).toBe(null);
       expect(normalisePaths(call[1])).toMatchSnapshot();
-      expect(call[2]).toBe('');
+      expect(call[2]).toBe(undefined);
     });
 
     test('transforms multiple dom-modules', () => {
@@ -111,7 +111,7 @@ describe('loader', () => {
       const [call] = opts.callback.mock.calls;
       expect(call[0]).toBe(null);
       expect(normalisePaths(call[1])).toMatchSnapshot();
-      expect(call[2]).toBe('');
+      expect(call[2]).toBe(undefined);
     });
 
     test('ignore non root level dom-modules', () => {
@@ -121,7 +121,7 @@ describe('loader', () => {
       const [call] = opts.callback.mock.calls;
       expect(call[0]).toBe(null);
       expect(normalisePaths(call[1])).toMatchSnapshot();
-      expect(call[2]).toBe('');
+      expect(call[2]).toBe(undefined);
     });
 
     test('ignores invalid HTML', () => {
@@ -130,7 +130,7 @@ describe('loader', () => {
       const [call] = opts.callback.mock.calls;
       expect(call[0]).toBe(null);
       expect(normalisePaths(call[1])).toMatchSnapshot();
-      expect(call[2]).toBe('');
+      expect(call[2]).toBe(undefined);
     });
 
     test('ignore script tags in a template', () => {
@@ -140,7 +140,7 @@ describe('loader', () => {
       const [call] = opts.callback.mock.calls;
       expect(call[0]).toBe(null);
       expect(normalisePaths(call[1])).toMatchSnapshot();
-      expect(call[2]).toBe('');
+      expect(call[2]).toBe(undefined);
     });
 
     test('removes script tags without a source', () => {
@@ -150,7 +150,7 @@ describe('loader', () => {
       const [call] = opts.callback.mock.calls;
       expect(call[0]).toBe(null);
       expect(normalisePaths(call[1])).toMatchSnapshot();
-      expect(call[2]).toBe('');
+      expect(call[2]).not.toBe(undefined);
     });
 
     test('removes script tags without a protocol', () => {
@@ -160,7 +160,7 @@ describe('loader', () => {
       const [call] = opts.callback.mock.calls;
       expect(call[0]).toBe(null);
       expect(normalisePaths(call[1])).toMatchSnapshot();
-      expect(call[2]).toBe('');
+      expect(call[2]).toBe(undefined);
     });
 
     test('removes link tags', () => {
@@ -170,7 +170,7 @@ describe('loader', () => {
       const [call] = opts.callback.mock.calls;
       expect(call[0]).toBe(null);
       expect(normalisePaths(call[1])).toMatchSnapshot();
-      expect(call[2]).toBe('');
+      expect(call[2]).toBe(undefined);
     });
 
     test('keeps css link tags with import', () => {
@@ -180,7 +180,7 @@ describe('loader', () => {
       const [call] = opts.callback.mock.calls;
       expect(call[0]).toBe(null);
       expect(normalisePaths(call[1])).toMatchSnapshot();
-      expect(call[2]).toBe('');
+      expect(call[2]).toBe(undefined);
     });
 
     test('keeps css link tags with rel stylesheet', () => {
@@ -190,7 +190,7 @@ describe('loader', () => {
       const [call] = opts.callback.mock.calls;
       expect(call[0]).toBe(null);
       expect(normalisePaths(call[1])).toMatchSnapshot();
-      expect(call[2]).toBe('');
+      expect(call[2]).toBe(undefined);
     });
 
     test('adds to body if no dom-module', () => {
@@ -199,7 +199,7 @@ describe('loader', () => {
       const [call] = opts.callback.mock.calls;
       expect(call[0]).toBe(null);
       expect(normalisePaths(call[1])).toMatchSnapshot();
-      expect(call[2]).toBe('');
+      expect(call[2]).toBe(undefined);
     });
   });
 
@@ -210,7 +210,7 @@ describe('loader', () => {
       const [call] = opts.callback.mock.calls;
       expect(call[0]).toBe(null);
       expect(normalisePaths(call[1])).toMatchSnapshot();
-      expect(call[2]).toBe('');
+      expect(call[2]).toBe(undefined);
     });
 
     test('maintains external scripts', () => {
@@ -219,7 +219,7 @@ describe('loader', () => {
       const [call] = opts.callback.mock.calls;
       expect(call[0]).toBe(null);
       expect(normalisePaths(call[1])).toMatchSnapshot();
-      expect(call[2]).toBe('');
+      expect(call[2]).toBe(undefined);
     });
 
     test('maintains inline scripts', () => {
