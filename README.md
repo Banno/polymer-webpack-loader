@@ -99,6 +99,30 @@ module: {
 }
 ```
 
+## Shimming
+Not all Polymer Elements have been written to execute as a module and will
+require changes to work with webpack. The most common issue encountered is because modules do not execute
+in the global scope. Variables, functions and classes will no longer be global unless
+they are declared as properties on the global object (window).
+
+```js
+class MyElement {} // I'm not global anymore
+window.myElement = MyElement; // Now I'm global again
+```
+
+For external library code, webpack provides [shimming options](https://webpack.js.org/guides/shimming/).
+
+ * Use the [exports-loader](https://webpack.js.org/guides/shimming/#exports-loader) to
+   add a module export to components which expect a symbol to be global.
+ * Use the [imports-loader](https://webpack.js.org/guides/shimming/#imports-loader) when a script
+   expects the `this` keyword to reference `window`.
+ * Use the [ProvidePlugin](https://webpack.js.org/guides/shimming/#provideplugin) to add a module
+   import statement when a script expects a variable to be globally defined (but is now a module export).
+ * Use the [NormalModuleReplacementPlugin](https://webpack.js.org/plugins/normal-module-replacement-plugin/)
+   to have webpack swap a module-compliant version for a script.
+   
+You may need to apply multiple shimming techniques to the same component.
+
 ### Use of HtmlWebpackPlugin
 Depending on how you configure the HtmlWebpackPlugin you may encounter conflicts with the polymer-webpack-loader. 
 
