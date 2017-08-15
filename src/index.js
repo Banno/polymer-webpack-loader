@@ -1,7 +1,8 @@
 import url from 'url';
 import { getAttribute, remove, removeFakeRootElements } from 'dom5';
-import loaderUtils from 'loader-utils';
+import { getOptions } from 'loader-utils';
 import { minify } from 'html-minifier';
+import { normalizeCondition } from 'webpack/lib/RuleSet';
 import parse5 from 'parse5';
 import espree from 'espree';
 import sourceMap from 'source-map';
@@ -16,7 +17,7 @@ const RuntimeRegistrationType = {
 class ProcessHtml {
   constructor(content, loader) {
     this.content = content;
-    this.options = loaderUtils.getOptions(loader) || {};
+    this.options = getOptions(loader) || {};
     this.currentFilePath = loader.resourcePath;
   }
 
@@ -88,25 +89,46 @@ class ProcessHtml {
    */
   links(links) {
     let source = '';
-    const ignoreLinks = this.options.ignoreLinks || [];
-    const ignoreLinksFromPartialMatches = this.options.ignoreLinksFromPartialMatches || [];
-    const ignorePathReWrites = this.options.ignorePathReWrite || [];
-    links.forEach((linkNode) => {
-      const href = getAttribute(linkNode, 'href') || '';
-      let path = '';
-      if (href) {
-        const checkIgnorePaths = ignorePathReWrites.filter(ignorePath => href.indexOf(ignorePath) >= 0);
-        if (checkIgnorePaths.length === 0) {
-          path = ProcessHtml.checkPath(href);
-        } else {
-          path = href;
-        }
+    // A function to test an href against options.ignoreLinks and options.ignoreLinksFromPartialMatches
+    let shouldIgnore;
+    let ignoreConditions = [];
+    if (this.options.ignoreLinks) {
+      ignoreConditions = ignoreConditions.concat(this.options.ignoreLinks);
+    }
+    if (this.options.ignoreLinksFromPartialMatches) {
+      const partials = this.options.ignoreLinksFromPartialMatches;
+      ignoreConditions = ignoreConditions.concat(resource =>
+        partials.some(partial => resource.indexOf(partial) > -1));
+    }
 
-        const ignoredFromPartial = ignoreLinksFromPartialMatches.filter(partial => href.indexOf(partial) >= 0);
-        if (ignoreLinks.indexOf(href) < 0 && ignoredFromPartial.length === 0) {
-          source += `\nrequire('${path}');\n`;
-        }
+    if (ignoreConditions.length > 0) {
+      shouldIgnore = normalizeCondition(ignoreConditions);
+    } else {
+      shouldIgnore = () => false;
+    }
+
+    // A function to test an href against options.ignorePathReWrite
+    let shouldRewrite;
+    if (this.options.ignorePathReWrite) {
+      shouldRewrite = normalizeCondition({ not: this.options.ignorePathReWrite });
+    } else {
+      shouldRewrite = () => true;
+    }
+
+    links.forEach((linkNode) => {
+      const href = getAttribute(linkNode, 'href');
+      if (!href || shouldIgnore(href)) {
+        return;
       }
+
+      let path;
+      if (shouldRewrite(href)) {
+        path = ProcessHtml.checkPath(href);
+      } else {
+        path = href;
+      }
+
+      source += `\nrequire('${path}');\n`;
     });
     return source;
   }
