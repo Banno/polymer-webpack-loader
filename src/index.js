@@ -32,6 +32,7 @@ class ProcessHtml {
     const domModuleArray = [];
     const scriptsArray = [];
     const toBodyArray = [];
+    const externalStyleSheetsArray = [];
     for (let x = 0; x < doc.childNodes.length; x++) {
       const childNode = doc.childNodes[x];
       if (childNode.tagName) {
@@ -41,6 +42,27 @@ class ProcessHtml {
             if (domModuleChildNodes[y].tagName === 'script') {
               if (!ProcessHtml.isExternalPath(domModuleChildNodes[y], 'src')) {
                 scriptsArray.push(domModuleChildNodes[y]);
+              }
+            }
+            if (domModuleChildNodes[y].tagName === 'template') {
+              const templateNode = domModuleChildNodes[y].content.childNodes;
+              for (let z = 0; z < templateNode.length; z++) {
+                if (templateNode[z].tagName) {
+                  if (templateNode[z].tagName === 'link') {
+                    const href = getAttribute(templateNode[z], 'href') || '';
+                    const rel = getAttribute(templateNode[z], 'rel') || '';
+                    const type = getAttribute(templateNode[z], 'type') || '';
+                    if (href && (rel === 'stylesheet' || type === 'css')) {
+                      externalStyleSheetsArray.push(
+                        {
+                          id: getAttribute(childNode, 'id'),
+                          href,
+                        },
+                      );
+                      remove(templateNode[z]);
+                    }
+                  }
+                }
               }
             }
           }
@@ -60,6 +82,7 @@ class ProcessHtml {
         } else {
           toBodyArray.push(childNode);
         }
+        console.dir(externalStyleSheetsArray);
       }
     }
     scriptsArray.forEach((scriptNode) => {
@@ -70,7 +93,7 @@ class ProcessHtml {
     if (toBodyArray.length > 0 || domModuleArray.length > 0) {
       source += '\nconst RegisterHtmlTemplate = require(\'polymer-webpack-loader/register-html-template\');\n';
       source += ProcessHtml.buildRuntimeSource(toBodyArray, RuntimeRegistrationType.BODY);
-      source += ProcessHtml.buildRuntimeSource(domModuleArray, RuntimeRegistrationType.DOM_MODULE);
+      source += ProcessHtml.buildRuntimeSource(domModuleArray, RuntimeRegistrationType.DOM_MODULE, externalStyleSheetsArray);
     }
     const scriptsSource = this.scripts(scriptsArray, source.split('\n').length);
     source += scriptsSource.source;
@@ -209,7 +232,7 @@ class ProcessHtml {
    * @param {RuntimeRegistrationType} type
    * @return {string}
    */
-  static buildRuntimeSource(nodes, type) {
+  static buildRuntimeSource(nodes, type, externalStyleSheetsArray) {
     let source = '';
     const registrationMethod = type === RuntimeRegistrationType.BODY ? 'toBody' : 'register';
     nodes.forEach((node) => {
@@ -225,9 +248,19 @@ class ProcessHtml {
         minifyCSS: true,
         removeComments: true,
       });
+      let minimizedJsonString = JSON.stringify(minimized);
+      const nodeId = getAttribute(node, 'id');
+      if (nodeId) {
+        const externalStyleSheet = externalStyleSheetsArray.filter(styleSheet => styleSheet.id === nodeId);
+        if (externalStyleSheet.length > 0) {
+          const split = minimizedJsonString.split('<template>');
+          minimizedJsonString = `${split[0]}<template><style>"+require('${externalStyleSheet[0].href}')+"</style>${split[1]}`;
+        }
+      }
+
 
       source += `
-RegisterHtmlTemplate.${registrationMethod}(${JSON.stringify(minimized)});
+RegisterHtmlTemplate.${registrationMethod}(${minimizedJsonString});
 `;
     });
 
