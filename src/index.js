@@ -44,7 +44,21 @@ class ProcessHtml {
                 scriptsArray.push(domModuleChildNodes[y]);
               }
             }
-            if (domModuleChildNodes[y].tagName === 'template') {
+            if (domModuleChildNodes[y].tagName === 'link' && this.options.processStyleLinks) {
+              const href = getAttribute(domModuleChildNodes[y], 'href') || '';
+              const rel = getAttribute(domModuleChildNodes[y], 'rel') || '';
+              const type = getAttribute(domModuleChildNodes[y], 'type') || '';
+              if (href && (rel === 'stylesheet' || type === 'css') && !ProcessHtml.isExternalPath(domModuleChildNodes[y], 'href')) {
+                externalStyleSheetsArray.push(
+                  {
+                    id: getAttribute(childNode, 'id'),
+                    href: ProcessHtml.checkPath(href),
+                  },
+                );
+                remove(domModuleChildNodes[y]);
+              }
+            }
+            if (domModuleChildNodes[y].tagName === 'template' && this.options.processStyleLinks) {
               const templateNode = domModuleChildNodes[y].content.childNodes;
               for (let z = 0; z < templateNode.length; z++) {
                 if (templateNode[z].tagName) {
@@ -52,11 +66,11 @@ class ProcessHtml {
                     const href = getAttribute(templateNode[z], 'href') || '';
                     const rel = getAttribute(templateNode[z], 'rel') || '';
                     const type = getAttribute(templateNode[z], 'type') || '';
-                    if (href && (rel === 'stylesheet' || type === 'css')) {
+                    if (href && (rel === 'stylesheet' || type === 'css') && !ProcessHtml.isExternalPath(templateNode[z], 'href')) {
                       externalStyleSheetsArray.push(
                         {
                           id: getAttribute(childNode, 'id'),
-                          href,
+                          href: ProcessHtml.checkPath(href),
                         },
                       );
                       remove(templateNode[z]);
@@ -251,10 +265,12 @@ class ProcessHtml {
       let minimizedJsonString = JSON.stringify(minimized);
       const nodeId = getAttribute(node, 'id');
       if (nodeId) {
-        const externalStyleSheet = externalStyleSheetsArray.filter(styleSheet => styleSheet.id === nodeId);
+        const externalStyleSheet = externalStyleSheetsArray.filter(styleSheet => styleSheet.id === nodeId).reverse();
         if (externalStyleSheet.length > 0) {
-          const split = minimizedJsonString.split('<template>');
-          minimizedJsonString = `${split[0]}<template><style>"+require('${externalStyleSheet[0].href}')+"</style>${split[1]}`;
+          externalStyleSheet.forEach((styleSheet) => {
+            const split = minimizedJsonString.split('<template>');
+            minimizedJsonString = `${split[0]}<template><style>"+require('${styleSheet.href}')+"</style>${split[1]}`;
+          });
         }
       }
 
