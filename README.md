@@ -35,39 +35,56 @@ The loader transforms your components:
 
 ```javascript
 {
-  test: /\.html$/,  
-  include: Array (optional),
-  exclude: RegExp (optional),
+  test: /\.html$/,
+  include: Condition(s) (optional),
+  exclude: Condition(s) (optional),
   options: {
-    ignoreLinks: Array (optional),
-    ignoreLinksFromPartialMatches: Array (optional),
-    ignorePathReWrite: Array (optional)
+    ignoreLinks: Condition(s) (optional),
+    ignoreLinksFromPartialMatches: Array<String> (optional),
+    ignorePathReWrite: Condition(s) (optional)
   },
   loader: 'polymer-webpack-loader'
 },
 ```
 
-### include: Array
+### include: Condition(s)
 
-Directories that contain your web components. This will allow you to control where the loader can access files to process. WARNING: If this property exists the loader will only process files that have their parent directory listed. So if you have `<link>` in your components to other directories they MUST be included in this Array.
+See [Rule.include] and [Condition] in the webpack documentation. Paths
+matching this option will be processed by polymer-webpack-loader.  WARNING: If
+this property exists the loader will only process files matching the given
+conditions. If your component has a `<link>` pointing to a component e.g. in
+another directory, the `include` condition(s) MUST also match that directory.
 
-### exclude: RegExp
+[Rule.include]: https://webpack.js.org/configuration/module/#rule-include
+[Condition]: https://webpack.js.org/configuration/module/#condition
 
-A regular expression for files that the loader should exclude. NOTE: Files imported through a `<link>` will not be excluded by this property. See Options.ignoreLinks.
+### exclude: Condition(s)
+
+See [Rule.exclude] and [Condition] in the webpack documentation. Paths
+matching this option will be excluded from processing by
+polymer-webpack-loader. NOTE: Files imported through a `<link>` will not be
+excluded by this property. See `Options.ignoreLinks`.
+
+[Rule.exclude]: https://webpack.js.org/configuration/module/#rule-exclude
 
 ### Options
 
-#### ignoreLinks: Array
+#### ignoreLinks: Condition(s)
 
-An array of paths to be ignored when dynamically imported. When the component loader comes across a `<link>` in your components it dynamically imports the value of href attribute.  
+`<link>`s pointing to paths matching these conditions (see [Condition] in the
+webpack documentation) will not be transformed into `import`s.
 
 #### ignoreLinksFromPartialMatches: Array
 
-An array of paths to be ignored when dynamically imported based on match of string anywhere within the path. When the component loader comes across a `<link>` in your components it dynamically imports the value of href attribute.  
+`<link>`s pointing to paths that match or contain strings in this array will
+not be transformed into `import`s.
 
-#### ignorePathReWrite: Array
+#### ignorePathReWrite: Condition(s)
 
-Paths the loader will respect as is. In order to properly import certain paths, checks are made to ensure the path is picked up correctly by Webpack. Paths matching a value in the Array will be imported as is, you may have aliases or just want the loader to respect the path.
+`<link>` paths matching these conditions (see [Condition] in the webpack
+documentation) will not be changed when transformed into `import`s. This can
+be useful for respecting aliases, loader syntax (e.g.
+`markup-inline-loader!./my-element.html`), or module paths.
 
 ### Use with Babel (or other JS transpilers)
 If you'd like to transpile the contents of your element's `<script>` block you can [chain an additional loader](https://webpack.js.org/configuration/module/#rule-use).
@@ -98,6 +115,30 @@ module: {
   ]
 }
 ```
+
+## Shimming
+Not all Polymer Elements have been written to execute as a module and will
+require changes to work with webpack. The most common issue encountered is because modules do not execute
+in the global scope. Variables, functions and classes will no longer be global unless
+they are declared as properties on the global object (window).
+
+```js
+class MyElement {} // I'm not global anymore
+window.myElement = MyElement; // Now I'm global again
+```
+
+For external library code, webpack provides [shimming options](https://webpack.js.org/guides/shimming/).
+
+ * Use the [exports-loader](https://webpack.js.org/guides/shimming/#exports-loader) to
+   add a module export to components which expect a symbol to be global.
+ * Use the [imports-loader](https://webpack.js.org/guides/shimming/#imports-loader) when a script
+   expects the `this` keyword to reference `window`.
+ * Use the [ProvidePlugin](https://webpack.js.org/guides/shimming/#provideplugin) to add a module
+   import statement when a script expects a variable to be globally defined (but is now a module export).
+ * Use the [NormalModuleReplacementPlugin](https://webpack.js.org/plugins/normal-module-replacement-plugin/)
+   to have webpack swap a module-compliant version for a script.
+   
+You may need to apply multiple shimming techniques to the same component.
 
 ### Use of HtmlWebpackPlugin
 Depending on how you configure the HtmlWebpackPlugin you may encounter conflicts with the polymer-webpack-loader. 

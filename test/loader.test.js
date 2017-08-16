@@ -73,10 +73,17 @@ describe('loader', () => {
     });
 
     test('ignoreLinks option', () => {
-      opts.query.ignoreLinks = ['foo.html'];
+      opts.query.ignoreLinks = [
+        'foo.html',
+        '/bar',
+        /node_modules/,
+      ];
 
       loader.call(opts, '<link rel="import" href="foo.html">' +
-        '<link rel="import" href="foofoo.html">');
+         '<link rel="import" href="foofoo.html">' +
+         '<link rel="import" href="/bar/foo.html">' +
+         '<link rel="import" href="../../node_modules/some-module/some-element.html">',
+      );
 
       const [call] = opts.callback.mock.calls;
       expect(call[0]).toBe(null);
@@ -213,6 +220,33 @@ describe('loader', () => {
 
     test('adds to body if no dom-module', () => {
       loader.call(opts, '<span></span>');
+
+      const [call] = opts.callback.mock.calls;
+      expect(call[0]).toBe(null);
+      expect(normalisePaths(call[1])).toMatchSnapshot();
+      expect(call[2]).toBe(undefined);
+    });
+
+    test('maintains links to stylesheet with an external url file', () => {
+      loader.call(opts, '<dom-module><template><link rel="stylesheet" href="http://example.com/test.css"></link></template></dom-module>');
+
+      const [call] = opts.callback.mock.calls;
+      expect(call[0]).toBe(null);
+      expect(normalisePaths(call[1])).toMatchSnapshot();
+      expect(call[2]).toBe(undefined);
+    });
+
+    test('maintains links to stylesheet with an protocol neutral href', () => {
+      loader.call(opts, '<dom-module><template><link rel="stylesheet" href="//example.com/test.css"></link></template></dom-module>');
+
+      const [call] = opts.callback.mock.calls;
+      expect(call[0]).toBe(null);
+      expect(normalisePaths(call[1])).toMatchSnapshot();
+      expect(call[2]).toBe(undefined);
+    });
+
+    test('ignores css link if flag is not set', () => {
+      loader.call(opts, '<dom-module><template><link rel="stylesheet" href="./test.css"></link></template></dom-module>');
 
       const [call] = opts.callback.mock.calls;
       expect(call[0]).toBe(null);
