@@ -1,11 +1,20 @@
 import url from 'url';
-import { getAttribute, remove, removeFakeRootElements } from 'dom5';
-import { getOptions } from 'loader-utils';
+import {
+  getAttribute,
+  getTextContent,
+  predicates,
+  queryAll,
+  remove,
+  removeFakeRootElements,
+  setTextContent,
+} from 'dom5';
+import loaderUtils from 'loader-utils';
 import { normalizeCondition } from 'webpack/lib/RuleSet';
 import parse5 from 'parse5';
 import espree from 'espree';
 import sourceMap from 'source-map';
 import htmlLoader from 'html-loader';
+import processCss from 'css-loader/lib/processCss';
 
 /** @enum {number} */
 const RuntimeRegistrationType = {
@@ -18,17 +27,63 @@ const htmlLoaderDefaultOptions = {
   cacheable: false,
 };
 
+const cssLoaderDefaultOptions = {
+  mode: 'global',
+  minimize: false,
+};
+
+const ID_PREFIX = 'xxxPOLYMERSTYLExxx';
+function randomIdent() {
+  return `${ID_PREFIX}${Math.random()}${Math.random()}xxx`;
+}
+
+function getPolymerStylePlaceholderExpr() {
+  return new RegExp(`/\\* (${ID_PREFIX}[0-9\\.]+xxx) \\*/`, 'g');
+}
+
+/**
+ * Given an HTML Element, run the serialized content through the html-loader
+ * to add require statements for images.
+ * 
+ * @param {HTMLElement} content 
+ * @param {Object} options
+ * @return {string}
+ */
+function addImageDependencies(node, options) {
+  // need to create an object with a childNodes array so parse5.serialize
+  // will return the actual node and not just it's child nodes.
+  const parseObject = {
+    childNodes: [node],
+  };
+
+  // Run the html-loader for all HTML content so that images are
+  // added to the dependency graph
+  const serializedSource = parse5.serialize(parseObject);
+  let minifiedSource = htmlLoader.call({
+    options: {
+      htmlLoader: options,
+    },
+  }, serializedSource);
+  if (minifiedSource) {
+    minifiedSource = minifiedSource.substr('module.exports = '.length);
+    minifiedSource = minifiedSource.replace(/;\s*$/, '');
+  }
+  return minifiedSource;
+}
+
 /* eslint class-methods-use-this: ["error", { "exceptMethods": ["scripts"] }] */
 class ProcessHtml {
   constructor(content, loader) {
     this.content = content;
-    this.options = getOptions(loader) || {};
+    this.options = loaderUtils.getOptions(loader) || {};
     this.currentFilePath = loader.resourcePath;
+    this.loader = loader;
   }
 
   /**
    * Process `<link>` tags, `<dom-module>` elements, and any `<script>`'s.
-   * Return transformed content as a bundle for webpack.
+   * @return {Promise<{source: string, sourceMap: (string|undefined)}>} transforme
+   *   content as a bundle for webpack.
    */
   process() {
     const doc = parse5.parse(this.content, { locationInfo: true });
@@ -71,19 +126,98 @@ class ProcessHtml {
       remove(scriptNode);
     });
 
+    // Find all the <style> tags to pass through the css-loader
+    const styleElements = queryAll(doc, predicates.hasTagName('style'));
+    const templateElements = queryAll(doc, predicates.hasTagName('template'));
+    templateElements.forEach((templateElement) => {
+      styleElements.push(...queryAll(templateElement.content, predicates.hasTagName('style')));
+    });
+
+    const cssLoaderOptions = Object.assign({}, cssLoaderDefaultOptions, this.options.cssLoader || {});
+    const styleMap = new Map();
+    const processStylePromises = [];
+    styleElements.forEach((styleElement) => {
+      const id = randomIdent();
+      const styleContent = getTextContent(styleElement);
+      const options = Object.assign({
+        query: cssLoaderOptions,
+        loaderContext: this.loader,
+      }, cssLoaderOptions);
+      processStylePromises.push(new Promise((resolve, reject) => {
+        processCss(styleContent, null, options, (err, result) => {
+          if (err) {
+            reject(err);
+            return;
+          }
+          const cssAsString = JSON.stringify(result.source)
+            .replace(result.urlItemRegExpG, (item) => {
+              const match = result.urlItemRegExp.exec(item);
+              let idx = +match[1];
+              const urlItem = result.urlItems[idx];
+              const url = resolve(urlItem.url);
+              idx = url.indexOf('?#');
+              if (idx < 0) {
+                idx = url.indexOf('#');
+              }
+              let urlRequest;
+              // idx === 0 is catched by isUrlRequest
+              if (idx > 0) {
+                // in cases like url('webfont.eot?#iefix')
+                urlRequest = url.substr(0, idx);
+                return `" + require(${loaderUtils.stringifyRequest(this.loader, urlRequest)}) + "${url.substr(idx)}`;
+              }
+              urlRequest = url;
+              return `" + require(${loaderUtils.stringifyRequest(this.loader, urlRequest)}) + "`;
+            });
+          styleMap.set(id, cssAsString);
+          resolve();
+        });
+      }));
+
+      // replace all the style content with a unique id we can look it up later
+      setTextContent(styleElement, `/* ${id} */`);
+    });
+
     let source = this.links(linksArray);
     if (toBodyArray.length > 0 || domModuleArray.length > 0) {
       source += '\nconst RegisterHtmlTemplate = require(\'polymer-webpack-loader/register-html-template\');\n';
-      source += this.buildRuntimeSource(toBodyArray, RuntimeRegistrationType.BODY);
-      source += this.buildRuntimeSource(domModuleArray, RuntimeRegistrationType.DOM_MODULE);
     }
-    const scriptsSource = this.scripts(scriptsArray, source.split('\n').length);
-    source += scriptsSource.source;
 
-    return {
-      source,
-      sourceMap: scriptsSource.sourceMap,
-    };
+    const htmlLoaderOptions = Object.assign({}, htmlLoaderDefaultOptions, this.options.htmlLoader || {}, { minifyCSS: false });
+    if (htmlLoaderOptions.exportAsDefault) {
+      delete htmlLoaderOptions.exportAsDefault;
+    }
+    if (htmlLoaderOptions.exportAsEs6Default) {
+      delete htmlLoaderOptions.exportAsEs6Default;
+    }
+
+    return Promise.all(processStylePromises)
+      .then(() => {
+        function replacePolymerStylePlaceholders(match, g1) {
+          if (!styleMap.has(g1)) {
+            return match;
+          }
+          return `" + ${styleMap.get(g1)} + "`;
+        }
+
+        const toBodyContent = toBodyArray.map(node =>
+          addImageDependencies(node, htmlLoaderOptions)
+            .replace(getPolymerStylePlaceholderExpr(), replacePolymerStylePlaceholders));
+
+        const domModuleContent = domModuleArray.map(node =>
+          addImageDependencies(node, htmlLoaderOptions)
+            .replace(getPolymerStylePlaceholderExpr(), replacePolymerStylePlaceholders));
+
+        source += ProcessHtml.buildRuntimeSource(toBodyContent, RuntimeRegistrationType.BODY);
+        source += ProcessHtml.buildRuntimeSource(domModuleContent, RuntimeRegistrationType.DOM_MODULE);
+        const scriptsSource = this.scripts(scriptsArray, source.split('\n').length);
+        source += scriptsSource.source;
+
+        return {
+          source,
+          sourceMap: scriptsSource.sourceMap,
+        };
+      });
   }
 
   /**
@@ -210,46 +344,14 @@ class ProcessHtml {
   /**
    * Generates required runtime source for the HtmlElements that need to be registered
    * either in the body or as document fragments on the document.
-   * @param {Array<HTMLElement>} nodes
+   * @param {Array<string>} content
    * @param {RuntimeRegistrationType} type
    * @return {string}
    */
-  buildRuntimeSource(nodes, type) {
-    let source = '';
+  static buildRuntimeSource(content, type) {
     const registrationMethod = type === RuntimeRegistrationType.BODY ? 'toBody' : 'register';
-    const htmlLoaderOptions = Object.assign({}, this.options.htmlLoader || {}, htmlLoaderDefaultOptions);
-    if (htmlLoaderOptions.exportAsDefault) {
-      delete htmlLoaderOptions.exportAsDefault;
-    }
-    if (htmlLoaderOptions.exportAsEs6Default) {
-      delete htmlLoaderOptions.exportAsEs6Default;
-    }
-    nodes.forEach((node) => {
-      // need to create an object with a childNodes array so parse5.serialize
-      // will return the actual node and not just it's child nodes.
-      const parseObject = {
-        childNodes: [node],
-      };
-
-      // Run the html-loader for all HTML content so that images are
-      // added to the dependency graph
-      const serializedSource = parse5.serialize(parseObject);
-      let minifiedSource = htmlLoader.call({
-        options: {
-          htmlLoader: htmlLoaderOptions,
-        },
-      }, serializedSource);
-      if (minifiedSource) {
-        minifiedSource = minifiedSource.substr('module.exports = '.length);
-        minifiedSource = minifiedSource.replace(/;\s*$/, '');
-      }
-
-      source += `
-RegisterHtmlTemplate.${registrationMethod}(${minifiedSource});
-`;
-    });
-
-    return source;
+    return content.map(source => `\nRegisterHtmlTemplate.${registrationMethod}(${source});\n`)
+      .join('');
   }
 
   /**
@@ -308,6 +410,11 @@ RegisterHtmlTemplate.${registrationMethod}(${minifiedSource});
 
 // eslint-disable-next-line no-unused-vars
 export default function entry(content, map) {
-  const results = new ProcessHtml(content, this).process();
-  this.callback(null, results.source, results.sourceMap);
+  const callback = this.async();
+  const processedHtml = new ProcessHtml(content, this).process();
+  processedHtml
+    .then((results) => {
+      callback(null, results.source, results.sourceMap);
+    })
+    .catch(callback);
 }
