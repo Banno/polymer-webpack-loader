@@ -1,166 +1,156 @@
 import url from 'url';
-import { getAttribute, predicates, query, queryAll, remove, removeFakeRootElements } from 'dom5';
-import loaderUtils from 'loader-utils';
+import { getAttribute, remove, removeFakeRootElements } from 'dom5';
+import { getOptions } from 'loader-utils';
 import { minify } from 'html-minifier';
+import { normalizeCondition } from 'webpack/lib/RuleSet';
 import parse5 from 'parse5';
 import espree from 'espree';
 import sourceMap from 'source-map';
 
-const domPred = predicates.AND(predicates.hasTagName('dom-module'));
-const linkPred = predicates.AND(predicates.hasTagName('link'));
-const scriptsPred = predicates.AND(predicates.hasTagName('script'));
+/** @enum {number} */
+const RuntimeRegistrationType = {
+  DOM_MODULE: 0,
+  BODY: 1,
+};
 
+/* eslint class-methods-use-this: ["error", { "exceptMethods": ["scripts"] }] */
 class ProcessHtml {
   constructor(content, loader) {
     this.content = content;
-    this.options = loaderUtils.getOptions(loader) || {};
+    this.options = getOptions(loader) || {};
     this.currentFilePath = loader.resourcePath;
   }
+
   /**
    * Process `<link>` tags, `<dom-module>` elements, and any `<script>`'s.
    * Return transformed content as a bundle for webpack.
    */
   process() {
-    const links = this.links();
-    const doms = this.domModule();
-    return this.scripts(links.source + doms.source, links.lineCount + doms.lineCount);
-  }
-  /**
-   * Look for all `<link>` elements and turn them into `require` statements.
-   * e.g.
-   * ```
-   * <link rel="import" href="paper-input/paper-input.html">
-   * becomes:
-   * require('paper-input/paper-input.html');
-   * ```
-   * @return {{source: string, lineCount: number}}
-   */
-  links() {
     const doc = parse5.parse(this.content, { locationInfo: true });
     removeFakeRootElements(doc);
-    const links = queryAll(doc, linkPred);
-
-    let source = '';
-    const ignoreLinks = this.options.ignoreLinks || [];
-    const ignoreLinksFromPartialMatches = this.options.ignoreLinksFromPartialMatches || [];
-    const ignorePathReWrites = this.options.ignorePathReWrite || [];
-    let lineCount = 0;
-    links.forEach((linkNode) => {
-      const href = getAttribute(linkNode, 'href') || '';
-      let path = '';
-      if (href) {
-        const checkIgnorePaths = ignorePathReWrites.filter(ignorePath => href.indexOf(ignorePath) >= 0);
-        if (checkIgnorePaths.length === 0) {
-          path = ProcessHtml.checkPath(href);
+    const linksArray = [];
+    const domModuleArray = [];
+    const scriptsArray = [];
+    const toBodyArray = [];
+    for (let x = 0; x < doc.childNodes.length; x++) {
+      const childNode = doc.childNodes[x];
+      if (childNode.tagName) {
+        if (childNode.tagName === 'dom-module') {
+          const domModuleChildNodes = childNode.childNodes;
+          for (let y = 0; y < domModuleChildNodes.length; y++) {
+            if (domModuleChildNodes[y].tagName === 'script') {
+              if (!ProcessHtml.isExternalPath(domModuleChildNodes[y], 'src')) {
+                scriptsArray.push(domModuleChildNodes[y]);
+              }
+            }
+          }
+          domModuleArray.push(childNode);
+        } else if (childNode.tagName === 'link') {
+          if (!ProcessHtml.isExternalPath(childNode, 'href') || !ProcessHtml.isCSSLink(childNode)) {
+            linksArray.push(childNode);
+          } else {
+            toBodyArray.push(childNode);
+          }
+        } else if (childNode.tagName === 'script') {
+          if (!ProcessHtml.isExternalPath(childNode, 'src')) {
+            scriptsArray.push(childNode);
+          } else {
+            toBodyArray.push(childNode);
+          }
         } else {
-          path = href;
-        }
-
-        const ignoredFromPartial = ignoreLinksFromPartialMatches.filter(partial => href.indexOf(partial) >= 0);
-        const parseLink = url.parse(href);
-        const isExternalLink = parseLink.protocol || parseLink.slashes;
-        if (ignoreLinks.indexOf(href) < 0 && ignoredFromPartial.length === 0 && !isExternalLink) {
-          source += `\nrequire('${path}');\n`;
-          lineCount += 2;
+          toBodyArray.push(childNode);
         }
       }
+    }
+    scriptsArray.forEach((scriptNode) => {
+      remove(scriptNode);
     });
+
+    let source = this.links(linksArray);
+    if (toBodyArray.length > 0 || domModuleArray.length > 0) {
+      source += '\nconst RegisterHtmlTemplate = require(\'polymer-webpack-loader/register-html-template\');\n';
+      source += ProcessHtml.buildRuntimeSource(toBodyArray, RuntimeRegistrationType.BODY);
+      source += ProcessHtml.buildRuntimeSource(domModuleArray, RuntimeRegistrationType.DOM_MODULE);
+    }
+    const scriptsSource = this.scripts(scriptsArray, source.split('\n').length);
+    source += scriptsSource.source;
+
     return {
       source,
-      lineCount,
+      sourceMap: scriptsSource.sourceMap,
     };
   }
+
   /**
-   * Looks for all `<dom-module>` elements, removing any `<script>`'s without a
-   * `src` and any `<link>` tags, as these are processed in separate steps.
-   * @return {{source: string, lineCount: number}}
+   * Process an array of ```<link>``` to determine if each needs to be ```require``` statement or ignored.
+   *
+   * @param {Array<HTMLElement>} links
+   * @return {string}
    */
-  domModule() {
-    const doc = parse5.parse(this.content, { locationInfo: true });
-    removeFakeRootElements(doc);
-    const domModule = query(doc, domPred);
-    const scripts = queryAll(doc, scriptsPred);
-    scripts.forEach((scriptNode) => {
-      const src = getAttribute(scriptNode, 'src') || '';
-      if (src) {
-        const parseSrc = url.parse(src);
-        if (!parseSrc.protocol || !parseSrc.slashes) {
-          remove(scriptNode);
-        }
-      } else {
-        remove(scriptNode);
-      }
-    });
-    const links = queryAll(doc, linkPred);
-    links.forEach((linkNode) => {
-      const href = getAttribute(linkNode, 'href') || '';
-      const parseLink = url.parse(href);
-      const isExternalLink = parseLink.protocol || parseLink.slashes;
-      if (!isExternalLink) {
-        remove(linkNode);
-      }
-    });
-    const html = domModule ? domModule.parentNode : doc;
-    const minimized = minify(parse5.serialize(html), {
-      collapseWhitespace: true,
-      conservativeCollapse: true,
-      minifyCSS: true,
-      removeComments: true,
-    });
-    if (minimized) {
-      if (domModule) {
-        return {
-          source: `
-const RegisterHtmlTemplate = require('polymer-webpack-loader/register-html-template');
-RegisterHtmlTemplate.register(${JSON.stringify(minimized)});
-`,
-          lineCount: 3,
-        };
-      }
-      return {
-        source: `
-const RegisterHtmlTemplate = require('polymer-webpack-loader/register-html-template');
-RegisterHtmlTemplate.toBody(${JSON.stringify(minimized)});
-`,
-        lineCount: 3,
-      };
+  links(links) {
+    let source = '';
+    // A function to test an href against options.ignoreLinks and options.ignoreLinksFromPartialMatches
+    let shouldIgnore;
+    let ignoreConditions = [];
+    if (this.options.ignoreLinks) {
+      ignoreConditions = ignoreConditions.concat(this.options.ignoreLinks);
     }
-    return {
-      source: '',
-      lineCount: 0,
-    };
+    if (this.options.ignoreLinksFromPartialMatches) {
+      const partials = this.options.ignoreLinksFromPartialMatches;
+      ignoreConditions = ignoreConditions.concat(resource =>
+        partials.some(partial => resource.indexOf(partial) > -1));
+    }
+
+    if (ignoreConditions.length > 0) {
+      shouldIgnore = normalizeCondition(ignoreConditions);
+    } else {
+      shouldIgnore = () => false;
+    }
+
+    // A function to test an href against options.ignorePathReWrite
+    let shouldRewrite;
+    if (this.options.ignorePathReWrite) {
+      shouldRewrite = normalizeCondition({ not: this.options.ignorePathReWrite });
+    } else {
+      shouldRewrite = () => true;
+    }
+
+    links.forEach((linkNode) => {
+      const href = getAttribute(linkNode, 'href');
+      if (!href || shouldIgnore(href)) {
+        return;
+      }
+
+      let path;
+      if (shouldRewrite(href)) {
+        path = ProcessHtml.checkPath(href);
+      } else {
+        path = href;
+      }
+
+      source += `\nrequire('${path}');\n`;
+    });
+    return source;
   }
+
   /**
-   * Look for all `<script>` elements. If the script has a valid `src` attribute
-   * it will be converted to a `require` statement.
-   * e.g.
-   * ```
-   * <script src="foo.js">
-   * becomes:
-   * require('foo');
-   * ```
-   * Otherwise if it's an inline script block, the content will be serialized
-   * and returned as part of the bundle.
-   * @param {string} initialSource previously generated JS
-   * @param {number} initialLineOffset number of lines already in initialSource
-   * @return {{source: string, sourceMap: Object=}}
+   * Process an array of ```<script>``` to determine if each needs to be a ```require``` statement
+   * or have its contents written to the webpack module
+   *
+   * @param {Array<HTMLElement>} scripts
+   * @param {number} initialLineCount
+   * @return {{source: string, sourceMap: (Object|undefined)}}
    */
-  scripts(initialSource, initialLineOffset) {
-    let lineOffset = initialLineOffset;
-    const doc = parse5.parse(this.content, { locationInfo: true });
-    removeFakeRootElements(doc);
-    const scripts = queryAll(doc, scriptsPred);
-    let source = initialSource;
+  scripts(scripts, initialLineCount) {
     let sourceMapGenerator = null;
+    let lineCount = initialLineCount;
+    let source = '';
     scripts.forEach((scriptNode) => {
       const src = getAttribute(scriptNode, 'src') || '';
       if (src) {
-        const parseSrc = url.parse(src);
-        if (!parseSrc.protocol || !parseSrc.slashes) {
-          const path = ProcessHtml.checkPath(src);
-          source += `\nrequire('${path}');\n`;
-          lineOffset += 2;
-        }
+        const path = ProcessHtml.checkPath(src);
+        source += `\nrequire('${path}');\n`;
+        lineCount += 2;
       } else {
         const scriptContents = parse5.serialize(scriptNode);
         sourceMapGenerator = sourceMapGenerator || new sourceMap.SourceMapGenerator();
@@ -174,7 +164,7 @@ RegisterHtmlTemplate.toBody(${JSON.stringify(minimized)});
         // line number of the script tag itself. And for the first line, offset the start
         // column to account for the <script> tag itself.
         const currentScriptLineOffset = scriptNode.childNodes[0].__location.line - 1; // eslint-disable-line no-underscore-dangle
-        const firstLineCharOffset = scriptNode.childNodes[0].__location.col; // eslint-disable-line no-underscore-dangle
+        const firstLineCharOffset = scriptNode.childNodes[0].__location.col - 1; // eslint-disable-line no-underscore-dangle
         tokens.forEach((token) => {
           if (!token.loc) {
             return;
@@ -185,7 +175,7 @@ RegisterHtmlTemplate.toBody(${JSON.stringify(minimized)});
               column: token.loc.start.column + (token.loc.start.line === 1 ? firstLineCharOffset : 0),
             },
             generated: {
-              line: token.loc.start.line + lineOffset,
+              line: token.loc.start.line + lineCount,
               column: token.loc.start.column,
             },
             source: this.currentFilePath,
@@ -199,7 +189,7 @@ RegisterHtmlTemplate.toBody(${JSON.stringify(minimized)});
         });
         source += `\n${scriptContents}\n`;
         // eslint-disable-next-line no-underscore-dangle
-        lineOffset += 2 + (scriptNode.__location.endTag.line - scriptNode.__location.startTag.line);
+        lineCount += 2 + (scriptNode.__location.endTag.line - scriptNode.__location.startTag.line);
       }
     });
     const retVal = {
@@ -212,8 +202,88 @@ RegisterHtmlTemplate.toBody(${JSON.stringify(minimized)});
     return retVal;
   }
 
+  /**
+   * Generates required runtime source for the HtmlElements that need to be registered
+   * either in the body or as document fragments on the document.
+   * @param {Array<HTMLElement>} nodes
+   * @param {RuntimeRegistrationType} type
+   * @return {string}
+   */
+  static buildRuntimeSource(nodes, type) {
+    let source = '';
+    const registrationMethod = type === RuntimeRegistrationType.BODY ? 'toBody' : 'register';
+    nodes.forEach((node) => {
+      // need to create an object with a childNodes array so parse5.serialize
+      // will return the actual node and not just it's child nodes.
+      const parseObject = {
+        childNodes: [node],
+      };
+
+      const minimized = minify(parse5.serialize(parseObject), {
+        collapseWhitespace: true,
+        conservativeCollapse: true,
+        minifyCSS: true,
+        removeComments: true,
+      });
+
+      source += `
+RegisterHtmlTemplate.${registrationMethod}(${JSON.stringify(minimized)});
+`;
+    });
+
+    return source;
+  }
+
+  /**
+   * Look to see if the HtmlElement has an external src/href as an attribute
+   * e.g.
+   * ```
+   * <script src="http://www.example.com/main.js">
+   * or
+   * <link href="http://www.example.com/main.html">
+   * returns: true
+   * ```
+   * @param {HTMLElement} node
+   * @param {string} attributeName src or href
+   * @return {boolean}
+   */
+  static isExternalPath(node, attributeName) {
+    const path = getAttribute(node, attributeName) || '';
+    const parseLink = url.parse(path, false, true);
+    return parseLink.protocol || parseLink.slashes;
+  }
+
+  /**
+   * Checks to see if the passed node is css ```<link>```
+   * e.g.
+   * ```
+   * <link type="css" href="...">
+   * or
+   * <link rel="stylesheet" href="...">
+   * returns: true
+   * ```
+   * @param {HTMLElement} node
+   * @return {boolean}
+   */
+  static isCSSLink(node) {
+    const rel = getAttribute(node, 'rel') || '';
+    const type = getAttribute(node, 'type') || '';
+    return rel === 'stylesheet' || type === 'css';
+  }
+
+  /**
+   * Ensure that a path not starting with ```/```, ```./```, ```~``` or ```../``` gets ```./``` prepended.
+   * e.g.
+   * ```
+   * foo.js
+   * becomes:
+   * ./foo.js
+   * ```
+   * @param {string} path link href or script src
+   * @return {boolean}
+   */
   static checkPath(path) {
-    const needsAdjusted = /^[A-Za-z]{1}/.test(path);
+    const needsAdjusted = /^(?!~|\.{0,2}\/)/.test(path);
     return needsAdjusted ? `./${path}` : path;
   }
 }
