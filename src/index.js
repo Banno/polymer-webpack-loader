@@ -96,7 +96,6 @@ class ProcessHtml {
         } else {
           toBodyArray.push(childNode);
         }
-        console.dir(externalStyleSheetsArray);
       }
     }
     scriptsArray.forEach((scriptNode) => {
@@ -298,7 +297,7 @@ RegisterHtmlTemplate.${registrationMethod}(${minimizedJsonString});
    */
   static isExternalPath(node, attributeName) {
     const path = getAttribute(node, attributeName) || '';
-    const parseLink = url.parse(path);
+    const parseLink = url.parse(path, false, true);
     return parseLink.protocol || parseLink.slashes;
   }
 
@@ -321,7 +320,7 @@ RegisterHtmlTemplate.${registrationMethod}(${minimizedJsonString});
   }
 
   /**
-   * Ensure that a path not starting with a relative path identifer gets ```./``` prepended
+   * Ensure that a path not starting with ```/```, ```./```, ```~``` or ```../``` gets ```./``` prepended.
    * e.g.
    * ```
    * foo.js
@@ -332,7 +331,7 @@ RegisterHtmlTemplate.${registrationMethod}(${minimizedJsonString});
    * @return {boolean}
    */
   static checkPath(path) {
-    const needsAdjusted = /^[A-Za-z]{1}/.test(path);
+    const needsAdjusted = /^(?!~|\.{0,2}\/)/.test(path);
     return needsAdjusted ? `./${path}` : path;
   }
 }
