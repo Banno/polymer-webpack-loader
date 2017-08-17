@@ -1,16 +1,21 @@
 import url from 'url';
 import { getAttribute, remove, removeFakeRootElements } from 'dom5';
 import { getOptions } from 'loader-utils';
-import { minify } from 'html-minifier';
 import { normalizeCondition } from 'webpack/lib/RuleSet';
 import parse5 from 'parse5';
 import espree from 'espree';
 import sourceMap from 'source-map';
+import htmlLoader from 'html-loader';
 
 /** @enum {number} */
 const RuntimeRegistrationType = {
   DOM_MODULE: 0,
   BODY: 1,
+};
+
+const htmlLoaderDefaultOptions = {
+  minimize: true,
+  cacheable: false,
 };
 
 /* eslint class-methods-use-this: ["error", { "exceptMethods": ["scripts"] }] */
@@ -69,8 +74,8 @@ class ProcessHtml {
     let source = this.links(linksArray);
     if (toBodyArray.length > 0 || domModuleArray.length > 0) {
       source += '\nconst RegisterHtmlTemplate = require(\'polymer-webpack-loader/register-html-template\');\n';
-      source += ProcessHtml.buildRuntimeSource(toBodyArray, RuntimeRegistrationType.BODY);
-      source += ProcessHtml.buildRuntimeSource(domModuleArray, RuntimeRegistrationType.DOM_MODULE);
+      source += this.buildRuntimeSource(toBodyArray, RuntimeRegistrationType.BODY);
+      source += this.buildRuntimeSource(domModuleArray, RuntimeRegistrationType.DOM_MODULE);
     }
     const scriptsSource = this.scripts(scriptsArray, source.split('\n').length);
     source += scriptsSource.source;
@@ -209,9 +214,16 @@ class ProcessHtml {
    * @param {RuntimeRegistrationType} type
    * @return {string}
    */
-  static buildRuntimeSource(nodes, type) {
+  buildRuntimeSource(nodes, type) {
     let source = '';
     const registrationMethod = type === RuntimeRegistrationType.BODY ? 'toBody' : 'register';
+    const htmlLoaderOptions = Object.assign({}, this.options.htmlLoader || {}, htmlLoaderDefaultOptions);
+    if (htmlLoaderOptions.exportAsDefault) {
+      delete htmlLoaderOptions.exportAsDefault;
+    }
+    if (htmlLoaderOptions.exportAsEs6Default) {
+      delete htmlLoaderOptions.exportAsEs6Default;
+    }
     nodes.forEach((node) => {
       // need to create an object with a childNodes array so parse5.serialize
       // will return the actual node and not just it's child nodes.
@@ -219,15 +231,21 @@ class ProcessHtml {
         childNodes: [node],
       };
 
-      const minimized = minify(parse5.serialize(parseObject), {
-        collapseWhitespace: true,
-        conservativeCollapse: true,
-        minifyCSS: true,
-        removeComments: true,
-      });
+      // Run the html-loader for all HTML content so that images are
+      // added to the dependency graph
+      const serializedSource = parse5.serialize(parseObject);
+      let minifiedSource = htmlLoader.call({
+        options: {
+          htmlLoader: htmlLoaderOptions,
+        },
+      }, serializedSource);
+      if (minifiedSource) {
+        minifiedSource = minifiedSource.substr('module.exports = '.length);
+        minifiedSource = minifiedSource.replace(/;\s*$/, '');
+      }
 
       source += `
-RegisterHtmlTemplate.${registrationMethod}(${JSON.stringify(minimized)});
+RegisterHtmlTemplate.${registrationMethod}(${minifiedSource});
 `;
     });
 
