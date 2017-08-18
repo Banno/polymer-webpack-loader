@@ -51,7 +51,7 @@ class ProcessHtml {
 
   /**
    * Process `<link>` tags, `<dom-module>` elements, and any `<script>`'s.
-   * @return {Promise<{source: string, sourceMap: (string|undefined)}>} transforme
+   * @return {Promise<{source: string, sourceMap: (string|undefined)}>} transform
    *   content as a bundle for webpack.
    */
   process() {
