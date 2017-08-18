@@ -65,8 +65,8 @@ class ProcessHtml {
     const toBodyArray = [];
     const externalStyleSheetsArray = [];
     doc.childNodes.forEach((rootNode) => {
-      if (rootNode.tagName) {
-        if (rootNode.tagName === 'dom-module') {
+      switch (rootNode.tagName) {
+        case 'dom-module':
           rootNode.childNodes.forEach((domModuleChild) => {
             if (domModuleChild.tagName === 'script') {
               if (!ProcessHtml.isExternalPath(domModuleChild, 'src')) {
@@ -102,21 +102,27 @@ class ProcessHtml {
             }
           });
           domModuleArray.push(rootNode);
-        } else if (rootNode.tagName === 'link') {
-          if (!ProcessHtml.isExternalPath(rootNode, 'href') || !ProcessHtml.isCSSLink(rootNode)) {
-            linksArray.push(rootNode);
-          } else {
+          break;
+
+        case 'link':
+          if (ProcessHtml.isExternalPath(rootNode, 'href') || getAttribute(rootNode, 'rel') !== 'import') {
             toBodyArray.push(rootNode);
+          } else {
+            linksArray.push(rootNode);
           }
-        } else if (rootNode.tagName === 'script') {
+          break;
+
+        case 'script':
           if (!ProcessHtml.isExternalPath(rootNode, 'src')) {
             scriptsArray.push(rootNode);
           } else {
             toBodyArray.push(rootNode);
           }
-        } else {
+          break;
+
+        default:
           toBodyArray.push(rootNode);
-        }
+          break;
       }
     });
     scriptsArray.forEach((scriptNode) => {
@@ -454,24 +460,6 @@ class ProcessHtml {
     const path = getAttribute(node, attributeName) || '';
     const parseLink = url.parse(path, false, true);
     return parseLink.protocol || parseLink.slashes;
-  }
-
-  /**
-   * Checks to see if the passed node is css ```<link>```
-   * e.g.
-   * ```
-   * <link type="css" href="...">
-   * or
-   * <link rel="stylesheet" href="...">
-   * returns: true
-   * ```
-   * @param {HTMLElement} node
-   * @return {boolean}
-   */
-  static isCSSLink(node) {
-    const rel = getAttribute(node, 'rel') || '';
-    const type = getAttribute(node, 'type') || '';
-    return rel === 'stylesheet' || type === 'css';
   }
 
   /**

@@ -30,6 +30,8 @@ describe('loader', () => {
       query: {
         htmlLoader: {
           minimize: false,
+          exportAsDefault: true,
+          exportAsEs6Default: true,
         },
       },
     };
@@ -75,6 +77,26 @@ describe('loader', () => {
         done();
       };
       loader.call(opts, '<link rel="import" href="">');
+    });
+
+    test('ignores stylesheet links with external href', (done) => {
+      opts.async = () => (err, source, map) => {
+        expect(err).toBe(null);
+        expect(normalisePaths(source)).toMatchSnapshot();
+        expect(map).toBe(undefined);
+        done();
+      };
+      loader.call(opts, '<link rel="stylesheet" href="https://example.com/foo.html">');
+    });
+
+    test('ignores import links with external href', (done) => {
+      opts.async = () => (err, source, map) => {
+        expect(err).toBe(null);
+        expect(normalisePaths(source)).toMatchSnapshot();
+        expect(map).toBe(undefined);
+        done();
+      };
+      loader.call(opts, '<link rel="import" href="https://example.com/foo.html">');
     });
 
     test('ignoreLinks option', (done) => {

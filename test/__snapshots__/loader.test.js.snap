@@ -194,7 +194,23 @@ require('./foofoo.html');
 "
 `;
 
+exports[`loader links ignores import links with external href 1`] = `
+"
+const RegisterHtmlTemplate = require('polymer-webpack-loader/register-html-template');
+
+RegisterHtmlTemplate.toBody(\\"<link rel=\\\\\\"import\\\\\\" href=\\\\\\"https://example.com/foo.html\\\\\\">\\");
+"
+`;
+
 exports[`loader links ignores links with invalid href 1`] = `""`;
+
+exports[`loader links ignores stylesheet links with external href 1`] = `
+"
+const RegisterHtmlTemplate = require('polymer-webpack-loader/register-html-template');
+
+RegisterHtmlTemplate.toBody(\\"<link rel=\\\\\\"stylesheet\\\\\\" href=\\\\\\"https://example.com/foo.html\\\\\\">\\");
+"
+`;
 
 exports[`loader links transforms links 1`] = `
 "
