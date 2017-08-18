@@ -128,15 +128,15 @@ class ProcessHtml {
         }
         let rewrittenUrl = styleMap.get(match);
         let queryIndex = rewrittenUrl.indexOf('?#');
-        if (rewrittenUrl < 0) {
+        if (queryIndex < 0) {
           queryIndex = rewrittenUrl.indexOf('#');
         }
         let urlSuffix = '';
         // queryIndex === 0 is caught by isUrlRequest
         if (queryIndex > 0) {
           // in cases like url('webfont.eot?#iefix')
-          urlSuffix = url.substr(queryIndex);
-          rewrittenUrl = url.substr(0, queryIndex);
+          urlSuffix = rewrittenUrl.substr(queryIndex);
+          rewrittenUrl = rewrittenUrl.substr(0, queryIndex);
         }
         return `'" + require(${JSON.stringify(rewrittenUrl)}) + "${urlSuffix}'`;
       }

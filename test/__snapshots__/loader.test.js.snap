@@ -130,6 +130,22 @@ RegisterHtmlTemplate.register(\\"<dom-module id=\\\\\\"x-foo-foo\\\\\\"><div></d
 "
 `;
 
+exports[`loader html-loader html is minimized when option is set 1`] = `
+"
+const RegisterHtmlTemplate = require('polymer-webpack-loader/register-html-template');
+
+RegisterHtmlTemplate.toBody(\\"<script src=http://example.com/test.js></script>\\");
+"
+`;
+
+exports[`loader html-loader image sources are replaced with require calls 1`] = `
+"
+const RegisterHtmlTemplate = require('polymer-webpack-loader/register-html-template');
+
+RegisterHtmlTemplate.toBody(\\"<img src=\\\\\\"\\" + require(\\"./foo.jpg\\") + \\"\\\\\\">\\");
+"
+`;
+
 exports[`loader links ignoreLinks option 1`] = `
 "
 require('./foofoo.html');
@@ -176,5 +192,29 @@ var x = 5;
 exports[`loader scripts transforms scripts with a source into imports 1`] = `
 "
 require('./foo.js');
+"
+`;
+
+exports[`loader styles font url() are properly formatted 1`] = `
+"
+const RegisterHtmlTemplate = require('polymer-webpack-loader/register-html-template');
+
+RegisterHtmlTemplate.toBody(\\"<style>\\\\n        @font-face {\\\\n          font-family: 'MyWebFont';\\\\n          src: url('\\" + require(\\"./webfont.eot\\") + \\"'); /* IE9 Compat Modes */\\\\n          src: url('\\" + require(\\"./webfont.eot\\") + \\"?#iefix') format('embedded-opentype'), \\\\n              url('\\" + require(\\"./webfont.woff2\\") + \\"') format('woff2'), \\\\n              url('\\" + require(\\"./webfont.woff\\") + \\"') format('woff'), \\\\n              url('\\" + require(\\"./webfont.ttf\\") + \\"')  format('truetype'), \\\\n              url('\\" + require(\\"./webfont.svg\\") + \\"#svgFontName') format('svg'); /* Legacy iOS */\\\\n        }\\\\n      </style>\\");
+"
+`;
+
+exports[`loader styles in body have url() calls replaced with require statements 1`] = `
+"
+const RegisterHtmlTemplate = require('polymer-webpack-loader/register-html-template');
+
+RegisterHtmlTemplate.toBody(\\"<style>* {background-image: url('\\" + require(\\"./foo.jpg\\") + \\"');}</style>\\");
+"
+`;
+
+exports[`loader styles in templates have url() calls replaced with require statements 1`] = `
+"
+const RegisterHtmlTemplate = require('polymer-webpack-loader/register-html-template');
+
+RegisterHtmlTemplate.toBody(\\"<template><style>* {background-image: url('\\" + require(\\"./foo.jpg\\") + \\"');}</style></template>\\");
 "
 `;

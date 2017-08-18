@@ -311,4 +311,69 @@ describe('loader', () => {
       </script>`);
     });
   });
+
+  describe('html-loader', () => {
+    test('image sources are replaced with require calls', (done) => {
+      opts.async = () => (err, source, map) => {
+        expect(err).toBe(null);
+        expect(normalisePaths(source)).toMatchSnapshot();
+        expect(map).toBe(undefined);
+        done();
+      };
+      loader.call(opts, '<img src="foo.jpg" />');
+    });
+
+    test('html is minimized when option is set', (done) => {
+      opts.async = () => (err, source, map) => {
+        expect(err).toBe(null);
+        expect(normalisePaths(source)).toMatchSnapshot();
+        expect(map).toBe(undefined);
+        done();
+      };
+      opts.query.htmlLoader.minimize = true;
+      loader.call(opts, '<script src="http://example.com/test.js"></script>');
+    });
+  });
+
+  describe('styles', () => {
+    test('in body have url() calls replaced with require statements', (done) => {
+      opts.async = () => (err, source, map) => {
+        expect(err).toBe(null);
+        expect(normalisePaths(source)).toMatchSnapshot();
+        expect(map).toBe(undefined);
+        done();
+      };
+      loader.call(opts, '<style>* {background-image: url("foo.jpg");}</style>');
+    });
+
+    test('in templates have url() calls replaced with require statements', (done) => {
+      opts.async = () => (err, source, map) => {
+        expect(err).toBe(null);
+        expect(normalisePaths(source)).toMatchSnapshot();
+        expect(map).toBe(undefined);
+        done();
+      };
+      loader.call(opts, '<template><style>* {background-image: url("foo.jpg");}</style></template>');
+    });
+
+    test('font url() are properly formatted', (done) => {
+      opts.async = () => (err, source, map) => {
+        expect(err).toBe(null);
+        expect(normalisePaths(source)).toMatchSnapshot();
+        expect(map).toBe(undefined);
+        done();
+      };
+      loader.call(opts, `<style>
+        @font-face {
+          font-family: 'MyWebFont';
+          src: url('webfont.eot'); /* IE9 Compat Modes */
+          src: url('webfont.eot?#iefix') format('embedded-opentype'), /* IE6-IE8 */
+              url('webfont.woff2') format('woff2'), /* Super Modern Browsers */
+              url('webfont.woff') format('woff'), /* Pretty Modern Browsers */
+              url('webfont.ttf')  format('truetype'), /* Safari, Android, iOS */
+              url('webfont.svg#svgFontName') format('svg'); /* Legacy iOS */
+        }
+      </style>`);
+    });
+  });
 });
