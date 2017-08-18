@@ -30,6 +30,9 @@ const RuntimeRegistrationType = {
 const htmlLoaderDefaultOptions = {
   minimize: true,
   cacheable: false,
+  minifyCSS: {
+    inline: ['none'],
+  },
 };
 
 const STYLE_ID_PREFIX = '__POLYMER_WEBPACK_LOADER_STYLE_';
@@ -72,16 +75,14 @@ class ProcessHtml {
               if (!ProcessHtml.isExternalPath(domModuleChild, 'src')) {
                 scriptsArray.push(domModuleChild);
               }
-            }
-            if (domModuleChild.tagName === 'link' && this.options.processStyleLinks) {
+            } else if (domModuleChild.tagName === 'link' && this.options.processStyleLinks) {
               const href = getAttribute(domModuleChild, 'href') || '';
               const rel = getAttribute(domModuleChild, 'rel') || '';
               const type = getAttribute(domModuleChild, 'type') || '';
               if (href && (rel === 'stylesheet' || type === 'css') && !ProcessHtml.isExternalPath(domModuleChild, 'href')) {
                 externalStyleSheetsArray.push(domModuleChild);
               }
-            }
-            if (domModuleChild.tagName === 'template' && this.options.processStyleLinks) {
+            } else if (domModuleChild.tagName === 'template' && this.options.processStyleLinks) {
               domModuleChild.content.childNodes.forEach((templateChild) => {
                 if (templateChild.tagName) {
                   if (templateChild.tagName === 'link') {
@@ -116,7 +117,9 @@ class ProcessHtml {
           break;
 
         default:
-          toBodyArray.push(rootNode);
+          if (rootNode.tagName) {
+            toBodyArray.push(rootNode);
+          }
           break;
       }
     });

@@ -162,6 +162,37 @@ RegisterHtmlTemplate.register(\\"<dom-module id=\\\\\\"x-foo-foo\\\\\\"><div></d
 "
 `;
 
+exports[`loader full components external stylesheets 1`] = `
+"
+require('../bower_components/polymer/polymer-element.html');
+
+const RegisterHtmlTemplate = require('polymer-webpack-loader/register-html-template');
+
+RegisterHtmlTemplate.register(\\"<dom-module id=\\\\\\"my-element\\\\\\">\\\\n        \\\\n        <template><style>\\" + require(\\"./outside.css\\") + \\"</style>\\\\n          <style>\\" + require(\\"./inside.css\\") + \\"</style>\\\\n          <h1>Hello, World! It's [[today]].</h1>\\\\n        </template>\\\\n        \\\\n      </dom-module>\\");
+
+
+          // Heyyyy, we're pulling in a Node module!
+          import format from 'date-fns/format';
+          
+         class MyElement extends Polymer.Element {
+            static get is() { return 'my-element'; }
+            static get properties() {
+              return {
+                today: {
+                  type: String,
+                  value: function() {
+                    return format(new Date(), 'MM/DD/YYYY');
+                  }
+                }
+              }
+            }
+          }
+      
+         window.customElements.define(MyElement.is, MyElement);
+        
+"
+`;
+
 exports[`loader html-loader html is minimized when option is set 1`] = `
 "
 const RegisterHtmlTemplate = require('polymer-webpack-loader/register-html-template');

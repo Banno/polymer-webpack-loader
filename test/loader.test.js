@@ -441,4 +441,46 @@ describe('loader', () => {
       </style>`);
     });
   });
+
+  describe('full components', () => {
+    test('external stylesheets', (done) => {
+      opts.query.processStyleLinks = true;
+      opts.async = () => (err, source, map) => {
+        expect(err).toBe(null);
+        expect(normalisePaths(source)).toMatchSnapshot();
+        expect(map).not.toBe(undefined);
+        verifySourceMap(source, map);
+        done();
+      };
+      loader.call(opts, `<link rel="import" href="../bower_components/polymer/polymer-element.html">
+      
+      <dom-module id="my-element">
+        <link rel="stylesheet" href="outside.css">
+        <template>
+          <link rel="stylesheet" href="inside.css">
+          <h1>Hello, World! It's [[today]].</h1>
+        </template>
+        <script>
+          // Heyyyy, we're pulling in a Node module!
+          import format from 'date-fns/format';
+          
+         class MyElement extends Polymer.Element {
+            static get is() { return 'my-element'; }
+            static get properties() {
+              return {
+                today: {
+                  type: String,
+                  value: function() {
+                    return format(new Date(), 'MM/DD/YYYY');
+                  }
+                }
+              }
+            }
+          }
+      
+         window.customElements.define(MyElement.is, MyElement);
+        </script>
+      </dom-module>`);
+    });
+  });
 });
