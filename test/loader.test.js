@@ -26,297 +26,461 @@ describe('loader', () => {
 
   beforeEach(() => {
     opts = {
-      callback: jest.fn(),
       resourcePath: 'src/test.html',
-      query: {},
+      query: {
+        htmlLoader: {
+          minimize: false,
+          exportAsDefault: true,
+          exportAsEs6Default: true,
+        },
+      },
     };
   });
 
-  test('can process basic input', () => {
+  test('can process basic input', (done) => {
+    opts.async = () => (err, source, map) => {
+      expect(err).toBe(null);
+      expect(normalisePaths(source)).toMatchSnapshot();
+      expect(map).toBe(undefined);
+      done();
+    };
     loader.call(opts, '<div></div>');
-
-    const [call] = opts.callback.mock.calls;
-    expect(call[0]).toBe(null);
-    expect(normalisePaths(call[1])).toMatchSnapshot();
-    expect(call[2]).toBe(undefined);
   });
 
-  test('can process without options', () => {
+  test('can process without options', (done) => {
     opts.query = null;
-
+    opts.async = () => (err, source, map) => {
+      expect(err).toBe(null);
+      expect(normalisePaths(source)).toMatchSnapshot();
+      expect(map).toBe(undefined);
+      done();
+    };
     loader.call(opts, '<div></div>');
-
-    const [call] = opts.callback.mock.calls;
-
-    expect(call[0]).toBe(null);
-    expect(normalisePaths(call[1])).toMatchSnapshot();
-    expect(call[2]).toBe(undefined);
   });
 
   describe('links', () => {
-    test('transforms links', () => {
+    test('transforms links', (done) => {
+      opts.async = () => (err, source, map) => {
+        expect(err).toBe(null);
+        expect(normalisePaths(source)).toMatchSnapshot();
+        expect(map).toBe(undefined);
+        done();
+      };
       loader.call(opts, '<link rel="import" href="foo.html">');
-
-      const [call] = opts.callback.mock.calls;
-      expect(call[0]).toBe(null);
-      expect(normalisePaths(call[1])).toMatchSnapshot();
-      expect(call[2]).toBe(undefined);
     });
 
-    test('ignores links with invalid href', () => {
+    test('ignores links with invalid href', (done) => {
+      opts.async = () => (err, source, map) => {
+        expect(err).toBe(null);
+        expect(normalisePaths(source)).toMatchSnapshot();
+        expect(map).toBe(undefined);
+        done();
+      };
       loader.call(opts, '<link rel="import" href="">');
-
-      const [call] = opts.callback.mock.calls;
-      expect(call[0]).toBe(null);
-      expect(normalisePaths(call[1])).toMatchSnapshot();
-      expect(call[2]).toBe(undefined);
     });
 
-    test('ignoreLinks option', () => {
+    test('ignores stylesheet links with external href', (done) => {
+      opts.async = () => (err, source, map) => {
+        expect(err).toBe(null);
+        expect(normalisePaths(source)).toMatchSnapshot();
+        expect(map).toBe(undefined);
+        done();
+      };
+      loader.call(opts, '<link rel="stylesheet" href="https://example.com/foo.html">');
+    });
+
+    test('ignores import links with external href', (done) => {
+      opts.async = () => (err, source, map) => {
+        expect(err).toBe(null);
+        expect(normalisePaths(source)).toMatchSnapshot();
+        expect(map).toBe(undefined);
+        done();
+      };
+      loader.call(opts, '<link rel="import" href="https://example.com/foo.html">');
+    });
+
+    test('ignoreLinks option', (done) => {
       opts.query.ignoreLinks = [
         'foo.html',
         '/bar',
         /node_modules/,
       ];
-
+      opts.async = () => (err, source, map) => {
+        expect(err).toBe(null);
+        expect(normalisePaths(source)).toMatchSnapshot();
+        expect(map).toBe(undefined);
+        done();
+      };
       loader.call(opts, '<link rel="import" href="foo.html">' +
          '<link rel="import" href="foofoo.html">' +
          '<link rel="import" href="/bar/foo.html">' +
          '<link rel="import" href="../../node_modules/some-module/some-element.html">',
       );
-
-      const [call] = opts.callback.mock.calls;
-      expect(call[0]).toBe(null);
-      expect(normalisePaths(call[1])).toMatchSnapshot();
-      expect(call[2]).toBe(undefined);
     });
 
-    test('ignoreLinksFromPartialMatches option', () => {
+    test('ignoreLinksFromPartialMatches option', (done) => {
       opts.query.ignoreLinksFromPartialMatches = ['foo.html'];
-
+      opts.async = () => (err, source, map) => {
+        expect(err).toBe(null);
+        expect(normalisePaths(source)).toMatchSnapshot();
+        expect(map).toBe(undefined);
+        done();
+      };
       loader.call(opts, '<link rel="import" href="foo.html">' +
         '<link rel="import" href="foofoo.html">');
-
-      const [call] = opts.callback.mock.calls;
-      expect(call[0]).toBe(null);
-      expect(normalisePaths(call[1])).toMatchSnapshot();
-      expect(call[2]).toBe(undefined);
     });
 
-    test('ignorePathReWrite option', () => {
+    test('ignorePathReWrite option', (done) => {
       opts.query.ignorePathReWrite = ['foo.html'];
-
+      opts.async = () => (err, source, map) => {
+        expect(err).toBe(null);
+        expect(normalisePaths(source)).toMatchSnapshot();
+        expect(map).toBe(undefined);
+        done();
+      };
       loader.call(opts, '<link rel="import" href="foo.html">' +
         '<link rel="import" href="foofoo.html">');
-
-      const [call] = opts.callback.mock.calls;
-      expect(call[0]).toBe(null);
-      expect(normalisePaths(call[1])).toMatchSnapshot();
-      expect(call[2]).toBe(undefined);
     });
   });
 
   describe('domModule', () => {
-    test('transforms dom-modules', () => {
+    test('transforms dom-modules', (done) => {
+      opts.async = () => (err, source, map) => {
+        expect(err).toBe(null);
+        expect(normalisePaths(source)).toMatchSnapshot();
+        expect(map).toBe(undefined);
+        done();
+      };
       loader.call(opts, '<dom-module id="x-foo">' +
         '<div></div></dom-module>');
-
-      const [call] = opts.callback.mock.calls;
-      expect(call[0]).toBe(null);
-      expect(normalisePaths(call[1])).toMatchSnapshot();
-      expect(call[2]).toBe(undefined);
     });
 
-    test('transforms multiple dom-modules', () => {
+    test('transforms multiple dom-modules', (done) => {
+      opts.async = () => (err, source, map) => {
+        expect(err).toBe(null);
+        expect(normalisePaths(source)).toMatchSnapshot();
+        expect(map).toBe(undefined);
+        done();
+      };
       loader.call(opts, '<dom-module id="x-foo">' +
         '<div></div></dom-module><dom-module id="x-foo-foo">' +
         '<div></div></dom-module>');
-
-      const [call] = opts.callback.mock.calls;
-      expect(call[0]).toBe(null);
-      expect(normalisePaths(call[1])).toMatchSnapshot();
-      expect(call[2]).toBe(undefined);
     });
 
-    test('ignore non root level dom-modules', () => {
+    test('ignore non root level dom-modules', (done) => {
+      opts.async = () => (err, source, map) => {
+        expect(err).toBe(null);
+        expect(normalisePaths(source)).toMatchSnapshot();
+        expect(map).toBe(undefined);
+        done();
+      };
       loader.call(opts, '<template><dom-module id="x-foo">' +
         '<div></div></dom-module></template>');
-
-      const [call] = opts.callback.mock.calls;
-      expect(call[0]).toBe(null);
-      expect(normalisePaths(call[1])).toMatchSnapshot();
-      expect(call[2]).toBe(undefined);
     });
 
-    test('ignores invalid HTML', () => {
+    test('ignores invalid HTML', (done) => {
+      opts.async = () => (err, source, map) => {
+        expect(err).toBe(null);
+        expect(normalisePaths(source)).toMatchSnapshot();
+        expect(map).toBe(undefined);
+        done();
+      };
       loader.call(opts, '</td>');
-
-      const [call] = opts.callback.mock.calls;
-      expect(call[0]).toBe(null);
-      expect(normalisePaths(call[1])).toMatchSnapshot();
-      expect(call[2]).toBe(undefined);
     });
 
-    test('ignore script tags in a template', () => {
+    test('ignore script tags in a template', (done) => {
+      opts.async = () => (err, source, map) => {
+        expect(err).toBe(null);
+        expect(normalisePaths(source)).toMatchSnapshot();
+        expect(map).toBe(undefined);
+        done();
+      };
       loader.call(opts, '<dom-module id="x-foo"><template>' +
         '<script>var x = 1;</script></template></dom-module>');
-
-      const [call] = opts.callback.mock.calls;
-      expect(call[0]).toBe(null);
-      expect(normalisePaths(call[1])).toMatchSnapshot();
-      expect(call[2]).toBe(undefined);
     });
 
-    test('removes script tags without a source', () => {
+    test('removes script tags without a source', (done) => {
+      opts.async = () => (err, source, map) => {
+        expect(err).toBe(null);
+        expect(normalisePaths(source)).toMatchSnapshot();
+        expect(map).not.toBe(undefined);
+        verifySourceMap(source, map);
+        done();
+      };
       loader.call(opts, '<dom-module id="x-foo">' +
         '<script>var x = 1;</script></dom-module>');
-
-      const [call] = opts.callback.mock.calls;
-      expect(call[0]).toBe(null);
-      expect(normalisePaths(call[1])).toMatchSnapshot();
-      expect(call[2]).not.toBe(undefined);
-      verifySourceMap(call[1], call[2]);
     });
 
-    test('removes script tags without a protocol', () => {
+    test('removes script tags without a protocol', (done) => {
+      opts.async = () => (err, source, map) => {
+        expect(err).toBe(null);
+        expect(normalisePaths(source)).toMatchSnapshot();
+        expect(map).toBe(undefined);
+        done();
+      };
       loader.call(opts, '<dom-module id="x-foo">' +
         '<script src="foo.js"></script></dom-module>');
-
-      const [call] = opts.callback.mock.calls;
-      expect(call[0]).toBe(null);
-      expect(normalisePaths(call[1])).toMatchSnapshot();
-      expect(call[2]).toBe(undefined);
     });
 
-    test('removes link tags', () => {
+    test('removes link tags', (done) => {
+      opts.async = () => (err, source, map) => {
+        expect(err).toBe(null);
+        expect(normalisePaths(source)).toMatchSnapshot();
+        expect(map).toBe(undefined);
+        done();
+      };
       loader.call(opts, '<link rel="import" href="test.html">' +
         '<dom-module id="x-foo"></dom-module>');
-
-      const [call] = opts.callback.mock.calls;
-      expect(call[0]).toBe(null);
-      expect(normalisePaths(call[1])).toMatchSnapshot();
-      expect(call[2]).toBe(undefined);
     });
 
-    test('keeps css link tags with import', () => {
+    test('keeps css link tags with import', (done) => {
+      opts.async = () => (err, source, map) => {
+        expect(err).toBe(null);
+        expect(normalisePaths(source)).toMatchSnapshot();
+        expect(map).toBe(undefined);
+        done();
+      };
       loader.call(opts, '<dom-module id="x-foo">' +
         '<link rel="import" type="css" href="test.css"></dom-module>');
-
-      const [call] = opts.callback.mock.calls;
-      expect(call[0]).toBe(null);
-      expect(normalisePaths(call[1])).toMatchSnapshot();
-      expect(call[2]).toBe(undefined);
     });
 
-    test('keeps css link tags with rel stylesheet', () => {
+    test('keeps css link tags with rel stylesheet', (done) => {
+      opts.async = () => (err, source, map) => {
+        expect(err).toBe(null);
+        expect(normalisePaths(source)).toMatchSnapshot();
+        expect(map).toBe(undefined);
+        done();
+      };
       loader.call(opts, '<dom-module id="x-foo">' +
         '<link rel="stylesheet" href="test.css"></dom-module>');
-
-      const [call] = opts.callback.mock.calls;
-      expect(call[0]).toBe(null);
-      expect(normalisePaths(call[1])).toMatchSnapshot();
-      expect(call[2]).toBe(undefined);
     });
 
-    test('adds to body if no dom-module', () => {
+    test('adds to body if no dom-module', (done) => {
+      opts.async = () => (err, source, map) => {
+        expect(err).toBe(null);
+        expect(normalisePaths(source)).toMatchSnapshot();
+        expect(map).toBe(undefined);
+        done();
+      };
       loader.call(opts, '<span></span>');
-
-      const [call] = opts.callback.mock.calls;
-      expect(call[0]).toBe(null);
-      expect(normalisePaths(call[1])).toMatchSnapshot();
-      expect(call[2]).toBe(undefined);
     });
 
-    test('maintains links to stylesheet with an external url file', () => {
-      loader.call(opts, '<dom-module><template><link rel="stylesheet" href="http://example.com/test.css"></template></dom-module>');
-
-      const [call] = opts.callback.mock.calls;
-      expect(call[0]).toBe(null);
-      expect(normalisePaths(call[1])).toMatchSnapshot();
-      expect(call[2]).toBe(undefined);
+    test('maintains links to stylesheet with an external url file', (done) => {
+      opts.async = () => (err, source, map) => {
+        expect(err).toBe(null);
+        expect(normalisePaths(source)).toMatchSnapshot();
+        expect(map).toBe(undefined);
+        done();
+      };
+      loader.call(opts, '<dom-module><template><link rel="stylesheet" href="http://example.com/test.css"></link></template></dom-module>');
     });
 
-    test('maintains links to stylesheet with an protocol neutral href', () => {
-      loader.call(opts, '<dom-module><template><link rel="stylesheet" href="//example.com/test.css"></template></dom-module>');
-
-      const [call] = opts.callback.mock.calls;
-      expect(call[0]).toBe(null);
-      expect(normalisePaths(call[1])).toMatchSnapshot();
-      expect(call[2]).toBe(undefined);
+    test('maintains links to stylesheet with an protocol neutral href', (done) => {
+      opts.async = () => (err, source, map) => {
+        expect(err).toBe(null);
+        expect(normalisePaths(source)).toMatchSnapshot();
+        expect(map).toBe(undefined);
+        done();
+      };
+      loader.call(opts, '<dom-module><template><link rel="stylesheet" href="//example.com/test.css"></link></template></dom-module>');
     });
 
-    test('ignores css link if flag is not set', () => {
+    test('ignores css link if flag is not set', (done) => {
+      opts.async = () => (err, source, map) => {
+        expect(err).toBe(null);
+        expect(normalisePaths(source)).toMatchSnapshot();
+        expect(map).toBe(undefined);
+        done();
+      };
+      loader.call(opts, '<dom-module><template><link rel="stylesheet" href="./test.css"></link></template></dom-module>');
+    });
+
+    test('ignores css link if flag is not set', (done) => {
+      opts.async = () => (err, source, map) => {
+        expect(err).toBe(null);
+        expect(normalisePaths(source)).toMatchSnapshot();
+        expect(map).toBe(undefined);
+        done();
+      };
       loader.call(opts, '<dom-module><template><link rel="stylesheet" href="./test.css"></template></dom-module>');
-
-      const [call] = opts.callback.mock.calls;
-      expect(call[0]).toBe(null);
-      expect(normalisePaths(call[1])).toMatchSnapshot();
-      expect(call[2]).toBe(undefined);
     });
 
-    test('rewrites css link tags with rel stylesheet', () => {
+    test('rewrites css link tags with rel stylesheet', (done) => {
       opts.query.processStyleLinks = 'true';
+      opts.async = () => (err, source, map) => {
+        expect(err).toBe(null);
+        expect(normalisePaths(source)).toMatchSnapshot();
+        expect(map).toBe(undefined);
+        done();
+      };
       loader.call(opts, '<dom-module id="x-foo"><template><link rel="stylesheet" href="test.css"></template></dom-module>');
-
-      const [call] = opts.callback.mock.calls;
-      expect(call[0]).toBe(null);
-      expect(normalisePaths(call[1])).toMatchSnapshot();
-      expect(call[2]).toBe(undefined);
     });
 
-    test('rewrites css link tags with rel import', () => {
+    test('rewrites css link tags with rel import', (done) => {
       opts.query.processStyleLinks = true;
+      opts.async = () => (err, source, map) => {
+        expect(err).toBe(null);
+        expect(normalisePaths(source)).toMatchSnapshot();
+        expect(map).toBe(undefined);
+        done();
+      };
       loader.call(opts, '<dom-module id="x-foo"><template><link rel="import" type="css" href="test.css"></template></dom-module>');
-
-      const [call] = opts.callback.mock.calls;
-      expect(call[0]).toBe(null);
-      expect(normalisePaths(call[1])).toMatchSnapshot();
-      expect(call[2]).toBe(undefined);
     });
 
-    test('rewrites multiple css link tags', () => {
+    test('rewrites multiple css link tags', (done) => {
       opts.query.processStyleLinks = true;
+      opts.async = () => (err, source, map) => {
+        expect(err).toBe(null);
+        expect(normalisePaths(source)).toMatchSnapshot();
+        expect(map).toBe(undefined);
+        done();
+      };
       loader.call(opts, '<dom-module id="x-foo"><link rel="stylesheet" href="test1.css"><template><link rel="stylesheet" href="test2.css"></template></dom-module>');
-
-      const [call] = opts.callback.mock.calls;
-      expect(call[0]).toBe(null);
-      expect(normalisePaths(call[1])).toMatchSnapshot();
-      expect(call[2]).toBe(undefined);
     });
   });
 
   describe('scripts', () => {
-    test('transforms scripts with a source into imports', () => {
+    test('transforms scripts with a source into imports', (done) => {
+      opts.async = () => (err, source, map) => {
+        expect(err).toBe(null);
+        expect(normalisePaths(source)).toMatchSnapshot();
+        expect(map).toBe(undefined);
+        done();
+      };
       loader.call(opts, '<script src="foo.js"></script>');
-
-      const [call] = opts.callback.mock.calls;
-      expect(call[0]).toBe(null);
-      expect(normalisePaths(call[1])).toMatchSnapshot();
-      expect(call[2]).toBe(undefined);
     });
 
-    test('maintains external scripts', () => {
+    test('maintains external scripts', (done) => {
+      opts.async = () => (err, source, map) => {
+        expect(err).toBe(null);
+        expect(normalisePaths(source)).toMatchSnapshot();
+        expect(map).toBe(undefined);
+        done();
+      };
       loader.call(opts, '<script src="http://example.com/test.js"></script>');
-
-      const [call] = opts.callback.mock.calls;
-      expect(call[0]).toBe(null);
-      expect(normalisePaths(call[1])).toMatchSnapshot();
-      expect(call[2]).toBe(undefined);
     });
 
-    test('maintains inline scripts', () => {
+    test('maintains inline scripts', (done) => {
+      opts.async = () => (err, source, map) => {
+        expect(err).toBe(null);
+        expect(normalisePaths(source)).toMatchSnapshot();
+        expect(map).not.toBe(undefined);
+        verifySourceMap(source, map);
+        done();
+      };
       loader.call(opts, `<script>var x = 5;
         function foobar(arg) {
           var y = 6;
         
         }
       </script>`);
+    });
+  });
 
-      const [call] = opts.callback.mock.calls;
-      expect(call[0]).toBe(null);
-      expect(normalisePaths(call[1])).toMatchSnapshot();
-      expect(call[2]).not.toBe(undefined);
-      verifySourceMap(call[1], call[2]);
+  describe('html-loader', () => {
+    test('image sources are replaced with require calls', (done) => {
+      opts.async = () => (err, source, map) => {
+        expect(err).toBe(null);
+        expect(normalisePaths(source)).toMatchSnapshot();
+        expect(map).toBe(undefined);
+        done();
+      };
+      loader.call(opts, '<img src="foo.jpg" />');
+    });
+
+    test('html is minimized when option is set', (done) => {
+      opts.async = () => (err, source, map) => {
+        expect(err).toBe(null);
+        expect(normalisePaths(source)).toMatchSnapshot();
+        expect(map).toBe(undefined);
+        done();
+      };
+      opts.query.htmlLoader.minimize = true;
+      loader.call(opts, '<script src="http://example.com/test.js"></script>');
+    });
+  });
+
+  describe('styles', () => {
+    test('in body have url() calls replaced with require statements', (done) => {
+      opts.async = () => (err, source, map) => {
+        expect(err).toBe(null);
+        expect(normalisePaths(source)).toMatchSnapshot();
+        expect(map).toBe(undefined);
+        done();
+      };
+      loader.call(opts, '<style>* {background-image: url("foo.jpg");}</style>');
+    });
+
+    test('in templates have url() calls replaced with require statements', (done) => {
+      opts.async = () => (err, source, map) => {
+        expect(err).toBe(null);
+        expect(normalisePaths(source)).toMatchSnapshot();
+        expect(map).toBe(undefined);
+        done();
+      };
+      loader.call(opts, '<template><style>* {background-image: url("foo.jpg");}</style></template>');
+    });
+
+    test('font url() are properly formatted', (done) => {
+      opts.async = () => (err, source, map) => {
+        expect(err).toBe(null);
+        expect(normalisePaths(source)).toMatchSnapshot();
+        expect(map).toBe(undefined);
+        done();
+      };
+      loader.call(opts, `<style>
+        @font-face {
+          font-family: 'MyWebFont';
+          src: url('webfont.eot'); /* IE9 Compat Modes */
+          src: url('webfont.eot?#iefix') format('embedded-opentype'), /* IE6-IE8 */
+              url('webfont.woff2') format('woff2'), /* Super Modern Browsers */
+              url('webfont.woff') format('woff'), /* Pretty Modern Browsers */
+              url('webfont.ttf')  format('truetype'), /* Safari, Android, iOS */
+              url('webfont.svg#svgFontName') format('svg'); /* Legacy iOS */
+        }
+      </style>`);
+    });
+  });
+
+  describe('full components', () => {
+    test('external stylesheets', (done) => {
+      opts.query.processStyleLinks = true;
+      opts.async = () => (err, source, map) => {
+        expect(err).toBe(null);
+        expect(normalisePaths(source)).toMatchSnapshot();
+        expect(map).not.toBe(undefined);
+        verifySourceMap(source, map);
+        done();
+      };
+      loader.call(opts, `<link rel="import" href="../bower_components/polymer/polymer-element.html">
+      
+      <dom-module id="my-element">
+        <link rel="stylesheet" href="outside.css">
+        <template>
+          <link rel="stylesheet" href="inside.css">
+          <h1>Hello, World! It's [[today]].</h1>
+        </template>
+        <script>
+          // Heyyyy, we're pulling in a Node module!
+          import format from 'date-fns/format';
+          
+         class MyElement extends Polymer.Element {
+            static get is() { return 'my-element'; }
+            static get properties() {
+              return {
+                today: {
+                  type: String,
+                  value: function() {
+                    return format(new Date(), 'MM/DD/YYYY');
+                  }
+                }
+              }
+            }
+          }
+      
+         window.customElements.define(MyElement.is, MyElement);
+        </script>
+      </dom-module>`);
     });
   });
 });

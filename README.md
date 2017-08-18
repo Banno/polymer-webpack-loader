@@ -42,7 +42,8 @@ The loader transforms your components:
     ignoreLinks: Condition(s) (optional),
     ignoreLinksFromPartialMatches: Array<String> (optional),
     ignorePathReWrite: Condition(s) (optional),
-    processStyleLinks: Boolean (optional)
+    processStyleLinks: Boolean (optional),
+    htmlLoader: Object (optional)
   },
   loader: 'polymer-webpack-loader'
 },
@@ -113,6 +114,10 @@ If set to true the loader will rewrite `<link import="css" href="...">` or `<lin
 
 
 2. The loader will only replace a `<link>` if the href is a relative path. Any link attempting to access an external link i.e. `http`, `https` or `//` will not be replaced.
+
+#### htmlLoader: Object
+
+Options to pass to the html-loader. See [html-loader](https://github.com/webpack-contrib/html-loader).
 
 ### Use with Babel (or other JS transpilers)
 If you'd like to transpile the contents of your element's `<script>` block you can [chain an additional loader](https://webpack.js.org/configuration/module/#rule-use).

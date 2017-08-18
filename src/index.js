@@ -1,11 +1,25 @@
 import url from 'url';
-import { getAttribute, remove, removeFakeRootElements } from 'dom5';
-import { getOptions } from 'loader-utils';
-import { minify } from 'html-minifier';
+import {
+  append,
+  constructors,
+  getAttribute,
+  getTextContent,
+  insertBefore,
+  predicates,
+  query,
+  queryAll,
+  remove,
+  removeFakeRootElements,
+  setTextContent,
+} from 'dom5';
+import loaderUtils from 'loader-utils';
 import { normalizeCondition } from 'webpack/lib/RuleSet';
 import parse5 from 'parse5';
 import espree from 'espree';
 import sourceMap from 'source-map';
+import htmlLoader from 'html-loader';
+import Tokenizer from 'css-selector-tokenizer';
+import postcss from 'postcss';
 
 /** @enum {number} */
 const RuntimeRegistrationType = {
@@ -13,108 +27,198 @@ const RuntimeRegistrationType = {
   BODY: 1,
 };
 
+const htmlLoaderDefaultOptions = {
+  minimize: true,
+  cacheable: false,
+  minifyCSS: {
+    inline: ['none'],
+  },
+};
+
+const STYLE_ID_PREFIX = '__POLYMER_WEBPACK_LOADER_STYLE_';
+const STYLE_ID_EXPR = new RegExp(`/\\* (${STYLE_ID_PREFIX}\\d+__) \\*/`, 'g');
+const STYLE_URL_PREFIX = '__POLYMER_WEBPACK_LOADER_URL_';
+const STYLE_URL_EXPR = new RegExp(`${STYLE_URL_PREFIX}\\d+__`, 'g');
+const STYLE_URL_IMPORT_EXPR = new RegExp(`<style>@import url\\((${STYLE_URL_PREFIX}\\d+__)\\);</style>`, 'g');
+
 /* eslint class-methods-use-this: ["error", { "exceptMethods": ["scripts"] }] */
 class ProcessHtml {
   constructor(content, loader) {
     this.content = content;
-    this.options = getOptions(loader) || {};
+    this.options = loaderUtils.getOptions(loader) || {};
     this.currentFilePath = loader.resourcePath;
+    this.loader = loader;
+    this.currentStyleId_ = 0;
+    this.stylePlaceholders = new Map();
   }
 
   /**
    * Process `<link>` tags, `<dom-module>` elements, and any `<script>`'s.
-   * Return transformed content as a bundle for webpack.
+   * @return {Promise<{source: string, sourceMap: (string|undefined)}>} transform
+   *   content as a bundle for webpack.
    */
   process() {
     const doc = parse5.parse(this.content, { locationInfo: true });
     removeFakeRootElements(doc);
+
+    // Gather up all the element types to process
     const linksArray = [];
     const domModuleArray = [];
     const scriptsArray = [];
     const toBodyArray = [];
     const externalStyleSheetsArray = [];
-    for (let x = 0; x < doc.childNodes.length; x++) {
-      const childNode = doc.childNodes[x];
-      if (childNode.tagName) {
-        if (childNode.tagName === 'dom-module') {
-          const domModuleChildNodes = childNode.childNodes;
-          for (let y = 0; y < domModuleChildNodes.length; y++) {
-            if (domModuleChildNodes[y].tagName === 'script') {
-              if (!ProcessHtml.isExternalPath(domModuleChildNodes[y], 'src')) {
-                scriptsArray.push(domModuleChildNodes[y]);
+    doc.childNodes.forEach((rootNode) => {
+      switch (rootNode.tagName) {
+        case 'dom-module':
+          rootNode.childNodes.forEach((domModuleChild) => {
+            if (domModuleChild.tagName === 'script') {
+              if (!ProcessHtml.isExternalPath(domModuleChild, 'src')) {
+                scriptsArray.push(domModuleChild);
               }
-            }
-            if (domModuleChildNodes[y].tagName === 'link' && this.options.processStyleLinks) {
-              const href = getAttribute(domModuleChildNodes[y], 'href') || '';
-              const rel = getAttribute(domModuleChildNodes[y], 'rel') || '';
-              const type = getAttribute(domModuleChildNodes[y], 'type') || '';
-              if (href && (rel === 'stylesheet' || type === 'css') && !ProcessHtml.isExternalPath(domModuleChildNodes[y], 'href')) {
-                externalStyleSheetsArray.push(
-                  {
-                    id: getAttribute(childNode, 'id'),
-                    href: ProcessHtml.checkPath(href),
-                  },
-                );
-                remove(domModuleChildNodes[y]);
+            } else if (domModuleChild.tagName === 'link' && this.options.processStyleLinks) {
+              const href = getAttribute(domModuleChild, 'href') || '';
+              const rel = getAttribute(domModuleChild, 'rel') || '';
+              const type = getAttribute(domModuleChild, 'type') || '';
+              if (href && (rel === 'stylesheet' || type === 'css') && !ProcessHtml.isExternalPath(domModuleChild, 'href')) {
+                externalStyleSheetsArray.push(domModuleChild);
               }
-            }
-            if (domModuleChildNodes[y].tagName === 'template' && this.options.processStyleLinks) {
-              const templateNode = domModuleChildNodes[y].content.childNodes;
-              for (let z = 0; z < templateNode.length; z++) {
-                if (templateNode[z].tagName) {
-                  if (templateNode[z].tagName === 'link') {
-                    const href = getAttribute(templateNode[z], 'href') || '';
-                    const rel = getAttribute(templateNode[z], 'rel') || '';
-                    const type = getAttribute(templateNode[z], 'type') || '';
-                    if (href && (rel === 'stylesheet' || type === 'css') && !ProcessHtml.isExternalPath(templateNode[z], 'href')) {
-                      externalStyleSheetsArray.push(
-                        {
-                          id: getAttribute(childNode, 'id'),
-                          href: ProcessHtml.checkPath(href),
-                        },
-                      );
-                      remove(templateNode[z]);
+            } else if (domModuleChild.tagName === 'template' && this.options.processStyleLinks) {
+              domModuleChild.content.childNodes.forEach((templateChild) => {
+                if (templateChild.tagName) {
+                  if (templateChild.tagName === 'link') {
+                    const href = getAttribute(templateChild, 'href') || '';
+                    const rel = getAttribute(templateChild, 'rel') || '';
+                    const type = getAttribute(templateChild, 'type') || '';
+                    if (href && (rel === 'stylesheet' || type === 'css') && !ProcessHtml.isExternalPath(templateChild, 'href')) {
+                      externalStyleSheetsArray.push(templateChild);
                     }
                   }
                 }
-              }
+              });
             }
-          }
-          domModuleArray.push(childNode);
-        } else if (childNode.tagName === 'link') {
-          if (!ProcessHtml.isExternalPath(childNode, 'href') || !ProcessHtml.isCSSLink(childNode)) {
-            linksArray.push(childNode);
+          });
+          domModuleArray.push(rootNode);
+          break;
+
+        case 'link':
+          if (ProcessHtml.isExternalPath(rootNode, 'href') || getAttribute(rootNode, 'rel') !== 'import') {
+            toBodyArray.push(rootNode);
           } else {
-            toBodyArray.push(childNode);
+            linksArray.push(rootNode);
           }
-        } else if (childNode.tagName === 'script') {
-          if (!ProcessHtml.isExternalPath(childNode, 'src')) {
-            scriptsArray.push(childNode);
+          break;
+
+        case 'script':
+          if (!ProcessHtml.isExternalPath(rootNode, 'src')) {
+            scriptsArray.push(rootNode);
           } else {
-            toBodyArray.push(childNode);
+            toBodyArray.push(rootNode);
           }
-        } else {
-          toBodyArray.push(childNode);
-        }
+          break;
+
+        default:
+          if (rootNode.tagName) {
+            toBodyArray.push(rootNode);
+          }
+          break;
       }
-    }
+    });
     scriptsArray.forEach((scriptNode) => {
       remove(scriptNode);
     });
 
+    // Find all the <style> tags to pass through postcss
+    const styleElements = ProcessHtml.inlineExternalStylesheets(externalStyleSheetsArray)
+      .concat(queryAll(doc, predicates.hasTagName('style')));
+    const templateElements = queryAll(doc, predicates.hasTagName('template'));
+    templateElements.forEach((templateElement) => {
+      styleElements.push(...queryAll(templateElement.content, predicates.hasTagName('style')));
+    });
+
+    // Postcss is asyncronous, so we have to wait for it to complete
+    const stylesProcessed = this.styles(styleElements);
+
     let source = this.links(linksArray);
     if (toBodyArray.length > 0 || domModuleArray.length > 0) {
       source += '\nconst RegisterHtmlTemplate = require(\'polymer-webpack-loader/register-html-template\');\n';
-      source += ProcessHtml.buildRuntimeSource(toBodyArray, RuntimeRegistrationType.BODY);
-      source += ProcessHtml.buildRuntimeSource(domModuleArray, RuntimeRegistrationType.DOM_MODULE, externalStyleSheetsArray);
     }
-    const scriptsSource = this.scripts(scriptsArray, source.split('\n').length);
-    source += scriptsSource.source;
 
-    return {
-      source,
-      sourceMap: scriptsSource.sourceMap,
-    };
+    // After styles are processed, replace the special comments with the rewritten
+    // style contents
+    return stylesProcessed.then(() => {
+      // Put the contents of the style tag processed by postcss back in the element
+      styleElements.forEach((style) => {
+        const originalTextContent = getTextContent(style);
+        if (originalTextContent.indexOf(STYLE_ID_PREFIX) >= 0) {
+          const replacedTextContent = originalTextContent.replace(STYLE_ID_EXPR, (match, g1) => {
+            if (!this.stylePlaceholders.has(g1)) {
+              return match;
+            }
+            return this.stylePlaceholders.get(g1);
+          });
+          setTextContent(style, replacedTextContent);
+        }
+      });
+
+      // External stylesheet import URLS were replaced with placeholders
+      // Replace the entire import with a  ```require``` calls
+      const replaceImportUrls = (match, g1) => {
+        if (!this.stylePlaceholders.has(g1)) {
+          return match;
+        }
+        const rewrittenUrl = this.stylePlaceholders.get(g1);
+        return `<style>" + require(${JSON.stringify(rewrittenUrl)}) + "</style>`;
+      };
+
+      // Style URLS were replaced with placeholders
+      // Replace the placeholders with ```require``` calls
+      const replaceStyleUrls = (match) => {
+        if (!this.stylePlaceholders.has(match)) {
+          return match;
+        }
+        let rewrittenUrl = this.stylePlaceholders.get(match);
+        let queryIndex = rewrittenUrl.indexOf('?#');
+        if (queryIndex < 0) {
+          queryIndex = rewrittenUrl.indexOf('#');
+        }
+        let urlSuffix = '';
+        // queryIndex === 0 is caught by isUrlRequest
+        if (queryIndex > 0) {
+          // in cases like url('webfont.eot?#iefix')
+          urlSuffix = rewrittenUrl.substr(queryIndex);
+          rewrittenUrl = rewrittenUrl.substr(0, queryIndex);
+        }
+        return `'" + require(${JSON.stringify(rewrittenUrl)}) + "${urlSuffix}'`;
+      };
+
+      const htmlLoaderOptions = Object.assign({}, htmlLoaderDefaultOptions, this.options.htmlLoader || {});
+      if (htmlLoaderOptions.exportAsDefault) {
+        delete htmlLoaderOptions.exportAsDefault;
+      }
+      if (htmlLoaderOptions.exportAsEs6Default) {
+        delete htmlLoaderOptions.exportAsEs6Default;
+      }
+
+      const toBodyContent = toBodyArray.map(node =>
+        ProcessHtml.htmlLoader(node, htmlLoaderOptions)
+          .replace(STYLE_URL_IMPORT_EXPR, replaceImportUrls)
+          .replace(STYLE_URL_EXPR, replaceStyleUrls));
+
+      const domModuleContent = domModuleArray.map(node =>
+        ProcessHtml.htmlLoader(node, htmlLoaderOptions)
+          .replace(STYLE_URL_IMPORT_EXPR, replaceImportUrls)
+          .replace(STYLE_URL_EXPR, replaceStyleUrls));
+
+      source += ProcessHtml.buildRuntimeSource(toBodyContent, RuntimeRegistrationType.BODY);
+      source += ProcessHtml.buildRuntimeSource(domModuleContent, RuntimeRegistrationType.DOM_MODULE);
+      const scriptsSource = this.scripts(scriptsArray, source.split('\n').length);
+      source += scriptsSource.source;
+
+      return {
+        source,
+        sourceMap: scriptsSource.sourceMap,
+      };
+    });
   }
 
   /**
@@ -159,7 +263,7 @@ class ProcessHtml {
 
       let path;
       if (shouldRewrite(href)) {
-        path = ProcessHtml.checkPath(href);
+        path = ProcessHtml.adjustPathIfNeeded(href);
       } else {
         path = href;
       }
@@ -184,7 +288,7 @@ class ProcessHtml {
     scripts.forEach((scriptNode) => {
       const src = getAttribute(scriptNode, 'src') || '';
       if (src) {
-        const path = ProcessHtml.checkPath(src);
+        const path = ProcessHtml.adjustPathIfNeeded(src);
         source += `\nrequire('${path}');\n`;
         lineCount += 2;
       } else {
@@ -239,47 +343,105 @@ class ProcessHtml {
   }
 
   /**
+   * Process an array of ```<style>``` elements
+   * If the content contains a ```url()``` statement, it is initially replaced
+   * with a unique identifier used to match back the postcss processed content.
+   * 
+   * A custom postcss parser plugin replaces all url hrefs with a different
+   * unique placeholder. These placeholders are replaced after all processing and
+   * minification with ```require``` statements
+   *
+   * @param {Array<HTMLElement>} styles
+   * @return {Promise<Map<string, string>>} map of style identifiers to content
+   */
+  styles(styles) {
+    const processStylePromises = [];
+    styles.forEach((styleElement) => {
+      const styleContent = getTextContent(styleElement);
+
+      // No need to run through postcss unless there are url() statements
+      if (styleContent.indexOf('url(') < 0) {
+        return;
+      }
+
+      const id = `${STYLE_ID_PREFIX}${this.currentStyleId_}__`;
+      this.currentStyleId_ += 1;
+      const parserCssOptions = {
+        root: styleContent,
+        urlMap: this.stylePlaceholders,
+        getNextIndex: () => {
+          const nextId = this.currentStyleId_;
+          this.currentStyleId_ += 1;
+          return nextId;
+        },
+      };
+      const postcssPipeline = postcss([ProcessHtml.postcssParserPlugin(parserCssOptions)]);
+      const options = {
+        // we need a prefix to avoid path rewriting of PostCSS
+        from: `/polymer-webpack-loader!${this.currentFilePath}`,
+        to: this.currentFilePath,
+        map: null,
+      };
+      processStylePromises.push(postcssPipeline.process(styleContent, options)
+        .then((result) => {
+          this.stylePlaceholders.set(id, result.css);
+        }));
+
+      // replace all the style content with a unique id we can look it up later
+      setTextContent(styleElement, `/* ${id} */`);
+    });
+    return Promise.all(processStylePromises);
+  }
+
+  /**
+   * Process an array of ```<link rel="stylesheet">``` elements
+   * These elements will be replaced with ```<style>``` tags
+   * with ```@import url(href)```.
+   * 
+   * The existing style processing will update the url to a placeholder
+   * which will be replaced with a ```require``` call.
+   *
+   * @param {Array<HTMLElement>} externalStyleSheets
+   * @return {Array<HTMLElement>} list of new style elements
+   */
+  static inlineExternalStylesheets(externalStyleSheets) {
+    const newStyleElements = [];
+    externalStyleSheets.forEach((linkElement) => {
+      const newStyleElement = constructors.element('style');
+      setTextContent(newStyleElement, `@import url(${JSON.stringify(getAttribute(linkElement, 'href'))});`);
+      let domModule = linkElement;
+      for (; domModule && domModule.tagName !== 'dom-module'; domModule = domModule.parentNode);
+
+      if (domModule) {
+        const template = query(domModule, predicates.hasTagName('template'));
+        if (!template) {
+          return;
+        }
+        if (template.content.childNodes.length > 0) {
+          insertBefore(template.content, template.content.childNodes[0], newStyleElement);
+        } else {
+          append(template.content, newStyleElement);
+        }
+      } else {
+        insertBefore(linkElement.parentNode, linkElement, newStyleElement);
+      }
+      remove(linkElement);
+      newStyleElements.push(newStyleElement);
+    });
+    return newStyleElements;
+  }
+
+  /**
    * Generates required runtime source for the HtmlElements that need to be registered
    * either in the body or as document fragments on the document.
-   * @param {Array<HTMLElement>} nodes
+   * @param {Array<string>} content
    * @param {RuntimeRegistrationType} type
    * @return {string}
    */
-  static buildRuntimeSource(nodes, type, externalStyleSheetsArray) {
-    let source = '';
+  static buildRuntimeSource(content, type) {
     const registrationMethod = type === RuntimeRegistrationType.BODY ? 'toBody' : 'register';
-    nodes.forEach((node) => {
-      // need to create an object with a childNodes array so parse5.serialize
-      // will return the actual node and not just it's child nodes.
-      const parseObject = {
-        childNodes: [node],
-      };
-
-      const minimized = minify(parse5.serialize(parseObject), {
-        collapseWhitespace: true,
-        conservativeCollapse: true,
-        minifyCSS: true,
-        removeComments: true,
-      });
-      let minimizedJsonString = JSON.stringify(minimized);
-      const nodeId = getAttribute(node, 'id');
-      if (nodeId) {
-        const externalStyleSheet = externalStyleSheetsArray.filter(styleSheet => styleSheet.id === nodeId).reverse();
-        if (externalStyleSheet.length > 0) {
-          externalStyleSheet.forEach((styleSheet) => {
-            const split = minimizedJsonString.split('<template>');
-            minimizedJsonString = `${split[0]}<template><style>"+require('${styleSheet.href}')+"</style>${split[1]}`;
-          });
-        }
-      }
-
-
-      source += `
-RegisterHtmlTemplate.${registrationMethod}(${minimizedJsonString});
-`;
-    });
-
-    return source;
+    return content.map(source => `\nRegisterHtmlTemplate.${registrationMethod}(${source});\n`)
+      .join('');
   }
 
   /**
@@ -302,21 +464,96 @@ RegisterHtmlTemplate.${registrationMethod}(${minimizedJsonString});
   }
 
   /**
-   * Checks to see if the passed node is css ```<link>```
-   * e.g.
-   * ```
-   * <link type="css" href="...">
-   * or
-   * <link rel="stylesheet" href="...">
-   * returns: true
-   * ```
-   * @param {HTMLElement} node
-   * @return {boolean}
+   * Given an HTML Element, run the serialized content through the html-loader
+   * to add require statements for images.
+   * 
+   * @param {HTMLElement} content 
+   * @param {Object} options
+   * @return {string}
    */
-  static isCSSLink(node) {
-    const rel = getAttribute(node, 'rel') || '';
-    const type = getAttribute(node, 'type') || '';
-    return rel === 'stylesheet' || type === 'css';
+  static htmlLoader(node, options) {
+    // need to create an object with a childNodes array so parse5.serialize
+    // will return the actual node and not just it's child nodes.
+    const parseObject = {
+      childNodes: [node],
+    };
+
+    // Run the html-loader for all HTML content so that images are
+    // added to the dependency graph
+    const serializedSource = parse5.serialize(parseObject);
+    let minifiedSource = htmlLoader.call({
+      options: {
+        htmlLoader: options,
+      },
+    }, serializedSource);
+    if (minifiedSource) {
+      minifiedSource = minifiedSource.substr('module.exports = '.length);
+      minifiedSource = minifiedSource.replace(/;\s*$/, '');
+    }
+    return minifiedSource;
+  }
+
+  /**
+   * postcss parser plugin to update url()s
+   * Url records are added to the parserOptions argument which
+   * is passed in.
+   * 
+   * @param {Object} cssOptions 
+   */
+  static postcssPlugin(parserOptions) {
+    return (css) => {
+      function processNode(node) {
+        const item = node;
+        switch (item.type) {
+          case 'value':
+            item.nodes.forEach(processNode);
+            break;
+
+          case 'nested-item':
+            item.nodes.forEach(processNode);
+            break;
+
+          case 'url':
+            if (item.url.replace(/\s/g, '').length && !/^#/.test(item.url) && loaderUtils.isUrlRequest(item.url, parserOptions.root)) {
+              // Don't remove quotes around url when contain space
+              if (item.url.indexOf(' ') === -1) {
+                item.stringType = '';
+              }
+              delete item.innerSpacingBefore;
+              delete item.innerSpacingAfter;
+              const itemUrl = item.url;
+              const urlId = `${STYLE_URL_PREFIX}${parserOptions.getNextIndex()}__`;
+              parserOptions.urlMap.set(urlId, ProcessHtml.adjustPathIfNeeded(itemUrl));
+              item.url = urlId;
+            }
+            break;
+
+          default:
+            break;
+        }
+      }
+
+      css.walkDecls((decl) => {
+        const localDecl = decl;
+        const values = Tokenizer.parseValues(decl.value);
+        values.nodes.forEach((value) => {
+          value.nodes.forEach(processNode);
+        });
+        localDecl.value = Tokenizer.stringifyValues(values);
+      });
+
+      css.walkAtRules((rule) => {
+        if (rule.name !== 'import' && typeof rule.params !== 'string') {
+          return;
+        }
+        const localRule = rule;
+        const values = Tokenizer.parseValues(rule.params);
+        values.nodes.forEach((value) => {
+          value.nodes.forEach(processNode);
+        });
+        localRule.params = Tokenizer.stringifyValues(values);
+      });
+    };
   }
 
   /**
@@ -328,16 +565,24 @@ RegisterHtmlTemplate.${registrationMethod}(${minimizedJsonString});
    * ./foo.js
    * ```
    * @param {string} path link href or script src
-   * @return {boolean}
+   * @return {string} adjusted path
    */
-  static checkPath(path) {
+  static adjustPathIfNeeded(path) {
     const needsAdjusted = /^(?!~|\.{0,2}\/)/.test(path);
     return needsAdjusted ? `./${path}` : path;
   }
 }
 
+ProcessHtml.postcssParserPlugin = postcss.plugin('polymer-webpack-loader-parser', ProcessHtml.postcssPlugin);
+
 // eslint-disable-next-line no-unused-vars
 export default function entry(content, map) {
-  const results = new ProcessHtml(content, this).process();
-  this.callback(null, results.source, results.sourceMap);
+  const callback = this.async();
+  const processedHtml = new ProcessHtml(content, this).process();
+  processedHtml
+    .then((results) => {
+      callback(null, results.source, results.sourceMap);
+    })
+    .catch(callback);
 }
+
