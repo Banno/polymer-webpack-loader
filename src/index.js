@@ -57,6 +57,8 @@ class ProcessHtml {
   process() {
     const doc = parse5.parse(this.content, { locationInfo: true });
     removeFakeRootElements(doc);
+
+    // Gather up all the element types to process
     const linksArray = [];
     const domModuleArray = [];
     const scriptsArray = [];
@@ -129,7 +131,8 @@ class ProcessHtml {
       styleElements.push(...queryAll(templateElement.content, predicates.hasTagName('style')));
     });
 
-    const stylesWalked = this.styles(styleElements);
+    // Postcss is asyncronous, so we have to wait for it to complete
+    const stylesProcessed = this.styles(styleElements);
 
     let source = this.links(linksArray);
     if (toBodyArray.length > 0 || domModuleArray.length > 0) {
@@ -138,7 +141,7 @@ class ProcessHtml {
 
     // After styles are processed, replace the special comments with the rewritten
     // style contents
-    return stylesWalked.then(() => {
+    return stylesProcessed.then(() => {
       // Put the contents of the style tag processed by postcss back in the element
       styleElements.forEach((style) => {
         const originalTextContent = getTextContent(style);
@@ -337,9 +340,12 @@ class ProcessHtml {
 
   /**
    * Process an array of ```<style>``` elements
-   * The content is initially replaced with a unique identifier.
-   * The original content is parsed for url() which have ```require``` statements
-   * added.
+   * If the content contains a ```url()``` statement, it is initially replaced
+   * with a unique identifier used to match back the postcss processed content.
+   * 
+   * A custom postcss parser plugin replaces all url hrefs with a different
+   * unique placeholder. These placeholders are replaced after all processing and
+   * minification with ```require``` statements
    *
    * @param {Array<HTMLElement>} styles
    * @return {Promise<Map<string, string>>} map of style identifiers to content
@@ -386,9 +392,10 @@ class ProcessHtml {
   /**
    * Process an array of ```<link rel="stylesheet">``` elements
    * These elements will be replaced with ```<style>``` tags
-   * inlined with the contents of the external stylesheet.
+   * with ```@import url(href)```.
    * 
-   * The contents are set to a placeholder which is replaced right
+   * The existing style processing will update the url to a placeholder
+   * which will be replaced with a ```require``` call.
    *
    * @param {Array<{element: HTMLElement, domModule: (HTMLElement|undefined)}>} styles
    * @return {Array<HTMLElement>} list of new style elements
