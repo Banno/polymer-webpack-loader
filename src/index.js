@@ -103,14 +103,6 @@ class ProcessHtml {
       source += '\nconst RegisterHtmlTemplate = require(\'polymer-webpack-loader/register-html-template\');\n';
     }
 
-    const htmlLoaderOptions = Object.assign({}, htmlLoaderDefaultOptions, this.options.htmlLoader || {});
-    if (htmlLoaderOptions.exportAsDefault) {
-      delete htmlLoaderOptions.exportAsDefault;
-    }
-    if (htmlLoaderOptions.exportAsEs6Default) {
-      delete htmlLoaderOptions.exportAsEs6Default;
-    }
-
     // After styles are processed, replace the special comments with the rewritten
     // style contents
     return stylesWalked.then((styleMap) => {
@@ -147,6 +139,14 @@ class ProcessHtml {
           rewrittenUrl = url.substr(0, queryIndex);
         }
         return `'" + require(${JSON.stringify(rewrittenUrl)}) + "${urlSuffix}'`;
+      }
+
+      const htmlLoaderOptions = Object.assign({}, htmlLoaderDefaultOptions, this.options.htmlLoader || {});
+      if (htmlLoaderOptions.exportAsDefault) {
+        delete htmlLoaderOptions.exportAsDefault;
+      }
+      if (htmlLoaderOptions.exportAsEs6Default) {
+        delete htmlLoaderOptions.exportAsEs6Default;
       }
 
       const toBodyContent = toBodyArray.map(node =>
