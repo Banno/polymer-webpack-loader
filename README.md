@@ -42,6 +42,7 @@ The loader transforms your components:
     ignoreLinks: Condition(s) (optional),
     ignoreLinksFromPartialMatches: Array<String> (optional),
     ignorePathReWrite: Condition(s) (optional)
+    htmlLoader: Object (optional)
   },
   loader: 'polymer-webpack-loader'
 },
@@ -85,6 +86,10 @@ not be transformed into `import`s.
 documentation) will not be changed when transformed into `import`s. This can
 be useful for respecting aliases, loader syntax (e.g.
 `markup-inline-loader!./my-element.html`), or module paths.
+
+#### htmlLoader: Object
+
+Options to pass to the html-loader. See [html-loader](https://github.com/webpack-contrib/html-loader).
 
 ### Use with Babel (or other JS transpilers)
 If you'd like to transpile the contents of your element's `<script>` block you can [chain an additional loader](https://webpack.js.org/configuration/module/#rule-use).
