@@ -14,7 +14,8 @@ import parse5 from 'parse5';
 import espree from 'espree';
 import sourceMap from 'source-map';
 import htmlLoader from 'html-loader';
-import processCss from 'css-loader/lib/processCss';
+import Tokenizer from 'css-selector-tokenizer';
+import postcss from 'postcss';
 
 /** @enum {number} */
 const RuntimeRegistrationType = {
@@ -27,19 +28,10 @@ const htmlLoaderDefaultOptions = {
   cacheable: false,
 };
 
-const cssLoaderDefaultOptions = {
-  mode: 'global',
-  minimize: false,
-};
-
-const ID_PREFIX = 'xxxPOLYMERSTYLExxx';
-function randomIdent() {
-  return `${ID_PREFIX}${Math.random()}${Math.random()}xxx`;
-}
-
-function getPolymerStylePlaceholderExpr() {
-  return new RegExp(`/\\* (${ID_PREFIX}[0-9\\.]+xxx) \\*/`, 'g');
-}
+const STYLE_ID_PREFIX = '__POLYMER_WEBPACK_LOADER_STYLE_';
+const STYLE_ID_EXPR = new RegExp(`/\\* (${STYLE_ID_PREFIX}\\d+__) \\*/`, 'g');
+const STYLE_URL_PREFIX = '__POLYMER_WEBPACK_LOADER_URL_';
+const STYLE_URL_EXPR = new RegExp(`${STYLE_URL_PREFIX}(\\d+)__`, 'g');
 
 /**
  * Given an HTML Element, run the serialized content through the html-loader
@@ -78,6 +70,7 @@ class ProcessHtml {
     this.options = loaderUtils.getOptions(loader) || {};
     this.currentFilePath = loader.resourcePath;
     this.loader = loader;
+    this.currentStyleId_ = 0;
   }
 
   /**
@@ -126,57 +119,14 @@ class ProcessHtml {
       remove(scriptNode);
     });
 
-    // Find all the <style> tags to pass through the css-loader
+    // Find all the <style> tags to pass through postcss
     const styleElements = queryAll(doc, predicates.hasTagName('style'));
     const templateElements = queryAll(doc, predicates.hasTagName('template'));
     templateElements.forEach((templateElement) => {
       styleElements.push(...queryAll(templateElement.content, predicates.hasTagName('style')));
     });
 
-    const cssLoaderOptions = Object.assign({}, cssLoaderDefaultOptions, this.options.cssLoader || {});
-    const styleMap = new Map();
-    const processStylePromises = [];
-    styleElements.forEach((styleElement) => {
-      const id = randomIdent();
-      const styleContent = getTextContent(styleElement);
-      const options = Object.assign({
-        query: cssLoaderOptions,
-        loaderContext: this.loader,
-      }, cssLoaderOptions);
-      processStylePromises.push(new Promise((resolve, reject) => {
-        processCss(styleContent, null, options, (err, result) => {
-          if (err) {
-            reject(err);
-            return;
-          }
-          const cssAsString = JSON.stringify(result.source)
-            .replace(result.urlItemRegExpG, (item) => {
-              const match = result.urlItemRegExp.exec(item);
-              let idx = +match[1];
-              const urlItem = result.urlItems[idx];
-              const url = resolve(urlItem.url);
-              idx = url.indexOf('?#');
-              if (idx < 0) {
-                idx = url.indexOf('#');
-              }
-              let urlRequest;
-              // idx === 0 is catched by isUrlRequest
-              if (idx > 0) {
-                // in cases like url('webfont.eot?#iefix')
-                urlRequest = url.substr(0, idx);
-                return `" + require(${loaderUtils.stringifyRequest(this.loader, urlRequest)}) + "${url.substr(idx)}`;
-              }
-              urlRequest = url;
-              return `" + require(${loaderUtils.stringifyRequest(this.loader, urlRequest)}) + "`;
-            });
-          styleMap.set(id, cssAsString);
-          resolve();
-        });
-      }));
-
-      // replace all the style content with a unique id we can look it up later
-      setTextContent(styleElement, `/* ${id} */`);
-    });
+    const stylesWalked = this.styles(styleElements);
 
     let source = this.links(linksArray);
     if (toBodyArray.length > 0 || domModuleArray.length > 0) {
@@ -191,33 +141,34 @@ class ProcessHtml {
       delete htmlLoaderOptions.exportAsEs6Default;
     }
 
-    return Promise.all(processStylePromises)
-      .then(() => {
-        function replacePolymerStylePlaceholders(match, g1) {
-          if (!styleMap.has(g1)) {
-            return match;
-          }
-          return `" + ${styleMap.get(g1)} + "`;
+    // After styles are processed, replace the special comments with the rewritten
+    // style contents
+    return stylesWalked.then((styleMap) => {
+      function replacePolymerStylePlaceholders(match, g1) {
+        if (!styleMap.has(g1)) {
+          return match;
         }
+        return `" + ${styleMap.get(g1)} + "`;
+      }
 
-        const toBodyContent = toBodyArray.map(node =>
-          addImageDependencies(node, htmlLoaderOptions)
-            .replace(getPolymerStylePlaceholderExpr(), replacePolymerStylePlaceholders));
+      const toBodyContent = toBodyArray.map(node =>
+        addImageDependencies(node, htmlLoaderOptions)
+          .replace(STYLE_ID_EXPR, replacePolymerStylePlaceholders));
 
-        const domModuleContent = domModuleArray.map(node =>
-          addImageDependencies(node, htmlLoaderOptions)
-            .replace(getPolymerStylePlaceholderExpr(), replacePolymerStylePlaceholders));
+      const domModuleContent = domModuleArray.map(node =>
+        addImageDependencies(node, htmlLoaderOptions)
+          .replace(STYLE_ID_EXPR, replacePolymerStylePlaceholders));
 
-        source += ProcessHtml.buildRuntimeSource(toBodyContent, RuntimeRegistrationType.BODY);
-        source += ProcessHtml.buildRuntimeSource(domModuleContent, RuntimeRegistrationType.DOM_MODULE);
-        const scriptsSource = this.scripts(scriptsArray, source.split('\n').length);
-        source += scriptsSource.source;
+      source += ProcessHtml.buildRuntimeSource(toBodyContent, RuntimeRegistrationType.BODY);
+      source += ProcessHtml.buildRuntimeSource(domModuleContent, RuntimeRegistrationType.DOM_MODULE);
+      const scriptsSource = this.scripts(scriptsArray, source.split('\n').length);
+      source += scriptsSource.source;
 
-        return {
-          source,
-          sourceMap: scriptsSource.sourceMap,
-        };
-      });
+      return {
+        source,
+        sourceMap: scriptsSource.sourceMap,
+      };
+    });
   }
 
   /**
@@ -342,6 +293,64 @@ class ProcessHtml {
   }
 
   /**
+   * Process an array of ```<style>``` elements
+   * The content is initially replaced with a unique identifier.
+   * The original content is parsed for url() which have ```require``` statements
+   * added.
+   *
+   * @param {Array<HTMLElement>} styles
+   * @return {Promise<Map<string, string>>} map of style identifiers to content
+   */
+  styles(styles) {
+    const styleMap = new Map();
+    const processStylePromises = [];
+    styles.forEach((styleElement) => {
+      const id = `${STYLE_ID_PREFIX}${this.currentStyleId_}__`;
+      this.currentStyleId_ += 1;
+      const styleContent = getTextContent(styleElement);
+
+      const parserCssOptions = {
+        root: styleContent,
+      };
+      const postcssPipeline = postcss([ProcessHtml.postcssParserPlugin(parserCssOptions)]);
+      const options = {
+        // we need a prefix to avoid path rewriting of PostCSS
+        from: `/polymer-webpack-loader!${this.currentFilePath}`,
+        to: this.currentFilePath,
+        map: null,
+      };
+      processStylePromises.push(postcssPipeline.process(styleContent, options)
+        .then((result) => {
+          const css = JSON.stringify(result.css)
+            .replace(STYLE_URL_EXPR, (match, g1) => {
+              const index = parseInt(g1, 10);
+              if (index >= (parserCssOptions.urlItems || []).length) {
+                return match;
+              }
+              let rewrittenUrl = parserCssOptions.urlItems[index].url;
+              let queryIndex = rewrittenUrl.indexOf('?#');
+              if (rewrittenUrl < 0) {
+                queryIndex = rewrittenUrl.indexOf('#');
+              }
+              let urlSuffix = '';
+              // queryIndex === 0 is caught by isUrlRequest
+              if (queryIndex > 0) {
+                // in cases like url('webfont.eot?#iefix')
+                urlSuffix = url.substr(queryIndex);
+                rewrittenUrl = url.substr(0, queryIndex);
+              }
+              return `" + require(${JSON.stringify(parserCssOptions.urlItems[index].url)}) + "${urlSuffix}`;
+            });
+          styleMap.set(id, css);
+        }));
+
+      // replace all the style content with a unique id we can look it up later
+      setTextContent(styleElement, `/* ${id} */`);
+    });
+    return Promise.all(processStylePromises).then(() => styleMap);
+  }
+
+  /**
    * Generates required runtime source for the HtmlElements that need to be registered
    * either in the body or as document fragments on the document.
    * @param {Array<string>} content
@@ -406,7 +415,66 @@ class ProcessHtml {
     const needsAdjusted = /^(?!~|\.{0,2}\/)/.test(path);
     return needsAdjusted ? `./${path}` : path;
   }
+
+  /**
+   * postcss parser plugin to update url()s
+   * Url records are added to the parserOptions argument which
+   * is passed in.
+   * 
+   * @param {Object} cssOptions 
+   */
+  static postcssPlugin(parserOptions) {
+    return (css) => {
+      const options = parserOptions;
+      const urlItems = [];
+
+      function processNode(node) {
+        const item = node;
+        switch (item.type) {
+          case 'value':
+            item.nodes.forEach(processNode);
+            break;
+
+          case 'nested-item':
+            item.nodes.forEach(processNode);
+            break;
+
+          case 'url':
+            if (item.url.replace(/\s/g, '').length && !/^#/.test(item.url) && loaderUtils.isUrlRequest(item.url, parserOptions.root)) {
+              // Don't remove quotes around url when contain space
+              if (item.url.indexOf(' ') === -1) {
+                item.stringType = '';
+              }
+              delete item.innerSpacingBefore;
+              delete item.innerSpacingAfter;
+              const itemUrl = item.url;
+              item.url = `${STYLE_URL_PREFIX}${urlItems.length}__`;
+              urlItems.push({
+                url: loaderUtils.urlToRequest(itemUrl, parserOptions.root),
+              });
+            }
+            break;
+
+          default:
+            break;
+        }
+      }
+
+      css.walkDecls((decl) => {
+        const localDecl = decl;
+        const values = Tokenizer.parseValues(decl.value);
+        values.nodes.forEach((value) => {
+          value.nodes.forEach(processNode);
+        });
+        localDecl.value = Tokenizer.stringifyValues(values);
+      });
+
+      options.urlItems = urlItems;
+    };
+  }
 }
+
+ProcessHtml.postcssParserPlugin = postcss.plugin('polymer-webpack-loader-parser', ProcessHtml.postcssPlugin);
 
 // eslint-disable-next-line no-unused-vars
 export default function entry(content, map) {

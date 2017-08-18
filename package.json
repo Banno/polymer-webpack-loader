@@ -33,13 +33,14 @@
   },
   "homepage": "https://github.com/webpack-contrib/polymer-webpack-loader#readme",
   "dependencies": {
-    "css-loader": "^0.28.5",
+    "css-selector-tokenizer": "^0.7.0",
     "dom5": "^2.3.0",
     "espree": "^3.4.3",
     "html-loader": "^0.5.1",
     "loader-utils": "^1.1.0",
     "parse5": "^3.0.2",
     "parse5-utils": "^2.0.0",
+    "postcss": "^6.0.9",
     "source-map": "^0.5.6",
     "webpack": "^3.2.0"
   },
