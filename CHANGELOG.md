@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+2.0.0 / 2017-08-18
+==================
+ * Feature - Rework the `ignoreLinks` option to use webpack conditions. Significantly improves the flexibility of this option.
+ * Deprecated the `ignoreLinksFromPartialMatches` option. It's use case can now be handled by the `ignoreLinks` option.
+ * Feature - Utilize the html-loader internally to add `<img>` sources to the dependency graph.
+ * Feature - Parse and process `url()` statements in style tags to add them to the dependency graph.
+ * Bug - Properly handle files with multiple root elements
+
 1.2.6 / 2017-08-02
 ==================
 

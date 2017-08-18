@@ -41,8 +41,7 @@
     "parse5": "^3.0.2",
     "parse5-utils": "^2.0.0",
     "postcss": "^6.0.9",
-    "source-map": "^0.5.6",
-    "webpack": "^3.2.0"
+    "source-map": "^0.5.6"
   },
   "devDependencies": {
     "babel-cli": "^6.24.1",
@@ -60,6 +59,7 @@
     "nsp": "^2.6.3",
     "pre-commit": "^1.2.2",
     "standard-version": "^4.2.0",
+    "webpack": "3.x",
     "webpack-defaults": "^1.5.0"
   },
   "files": [

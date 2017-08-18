@@ -40,7 +40,6 @@ The loader transforms your components:
   exclude: Condition(s) (optional),
   options: {
     ignoreLinks: Condition(s) (optional),
-    ignoreLinksFromPartialMatches: Array<String> (optional),
     ignorePathReWrite: Condition(s) (optional),
     processStyleLinks: Boolean (optional),
     htmlLoader: Object (optional)
@@ -75,11 +74,6 @@ excluded by this property. See `Options.ignoreLinks`.
 
 `<link>`s pointing to paths matching these conditions (see [Condition] in the
 webpack documentation) will not be transformed into `import`s.
-
-#### ignoreLinksFromPartialMatches: Array
-
-`<link>`s pointing to paths that match or contain strings in this array will
-not be transformed into `import`s.
 
 #### ignorePathReWrite: Condition(s)
 
@@ -149,6 +143,26 @@ module: {
 }
 ```
 
+### Use of HtmlWebpackPlugin
+Depending on how you configure the HtmlWebpackPlugin you may encounter conflicts with the polymer-webpack-loader. 
+
+Example: 
+
+```javascript
+{
+  test: /\.html$/,
+  loader: 'html-loader',
+  include: [
+    path.resolve(__dirname, './index.html'),
+  ],
+},
+{
+  test: /\.html$/,  
+  loader: 'polymer-webpack-loader'
+}
+```
+This would expose your index.html file to the polymer-webpack-loader based on the process used by the html-loader. In this case you would need to exclude your html file from the polymer-webpack-loader or look for other ways to avoid this conflict. See: [html-webpack-plugin template options](https://github.com/jantimon/html-webpack-plugin/blob/master/docs/template-option.md)
+
 ## Shimming
 Not all Polymer Elements have been written to execute as a module and will
 require changes to work with webpack. The most common issue encountered is because modules do not execute
@@ -173,25 +187,16 @@ For external library code, webpack provides [shimming options](https://webpack.j
    
 You may need to apply multiple shimming techniques to the same component.
 
-### Use of HtmlWebpackPlugin
-Depending on how you configure the HtmlWebpackPlugin you may encounter conflicts with the polymer-webpack-loader. 
+## Boostrapping Your Application
 
-Example: 
+The webcomponent polyfills must be added in a specific order. If you do not delay loading the main bundle with your components, you will see the following exceptions in the browser console:
 
-```javascript
-{
-  test: /\.html$/,
-  loader: 'html-loader',
-  include: [
-    path.resolve(__dirname, './index.html'),
-  ],
-},
-{
-  test: /\.html$/,  
-  loader: 'polymer-webpack-loader'
-}
 ```
-This would expose your index.html file to the polymer-webpack-loader based on the process used by the html-loader. In this case you would need to exclude your html file from the polymer-webpack-loader or look for other ways to avoid this conflict. See: [html-webpack-plugin template options](https://github.com/jantimon/html-webpack-plugin/blob/master/docs/template-option.md)
+Uncaught TypeError: Failed to construct 'HTMLElement': Please use the 'new' operator, this DOM object constructor cannot be called as a function.
+```
+
+Reference the [demo html file](https://github.com/webpack-contrib/polymer-webpack-loader/blob/master/demo/src/index.ejs)
+for the proper loading sequence.
 
 <h2 align="center">Maintainers</h2>
 
