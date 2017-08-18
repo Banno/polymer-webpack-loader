@@ -39,7 +39,7 @@ const STYLE_ID_PREFIX = '__POLYMER_WEBPACK_LOADER_STYLE_';
 const STYLE_ID_EXPR = new RegExp(`/\\* (${STYLE_ID_PREFIX}\\d+__) \\*/`, 'g');
 const STYLE_URL_PREFIX = '__POLYMER_WEBPACK_LOADER_URL_';
 const STYLE_URL_EXPR = new RegExp(`${STYLE_URL_PREFIX}\\d+__`, 'g');
-const STYLE_URL_IMPORT_EXPR = new RegExp(`<style>@import url\\((${STYLE_URL_PREFIX}\\d+__)\\)</style>`, 'g');
+const STYLE_URL_IMPORT_EXPR = new RegExp(`<style>@import url\\((${STYLE_URL_PREFIX}\\d+__)\\);</style>`, 'g');
 
 /* eslint class-methods-use-this: ["error", { "exceptMethods": ["scripts"] }] */
 class ProcessHtml {
@@ -408,7 +408,7 @@ class ProcessHtml {
     const newStyleElements = [];
     externalStyleSheets.forEach((linkElement) => {
       const newStyleElement = constructors.element('style');
-      setTextContent(newStyleElement, `@import url(${JSON.stringify(getAttribute(linkElement, 'href'))})`);
+      setTextContent(newStyleElement, `@import url(${JSON.stringify(getAttribute(linkElement, 'href'))});`);
       let domModule = linkElement;
       for (; domModule && domModule.tagName !== 'dom-module'; domModule = domModule.parentNode);
 
@@ -585,3 +585,4 @@ export default function entry(content, map) {
     })
     .catch(callback);
 }
+
