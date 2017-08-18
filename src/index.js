@@ -33,36 +33,6 @@ const STYLE_ID_EXPR = new RegExp(`/\\* (${STYLE_ID_PREFIX}\\d+__) \\*/`, 'g');
 const STYLE_URL_PREFIX = '__POLYMER_WEBPACK_LOADER_URL_';
 const STYLE_URL_EXPR = new RegExp(`${STYLE_URL_PREFIX}(\\d+)__`, 'g');
 
-/**
- * Given an HTML Element, run the serialized content through the html-loader
- * to add require statements for images.
- * 
- * @param {HTMLElement} content 
- * @param {Object} options
- * @return {string}
- */
-function addImageDependencies(node, options) {
-  // need to create an object with a childNodes array so parse5.serialize
-  // will return the actual node and not just it's child nodes.
-  const parseObject = {
-    childNodes: [node],
-  };
-
-  // Run the html-loader for all HTML content so that images are
-  // added to the dependency graph
-  const serializedSource = parse5.serialize(parseObject);
-  let minifiedSource = htmlLoader.call({
-    options: {
-      htmlLoader: options,
-    },
-  }, serializedSource);
-  if (minifiedSource) {
-    minifiedSource = minifiedSource.substr('module.exports = '.length);
-    minifiedSource = minifiedSource.replace(/;\s*$/, '');
-  }
-  return minifiedSource;
-}
-
 /* eslint class-methods-use-this: ["error", { "exceptMethods": ["scripts"] }] */
 class ProcessHtml {
   constructor(content, loader) {
@@ -133,7 +103,7 @@ class ProcessHtml {
       source += '\nconst RegisterHtmlTemplate = require(\'polymer-webpack-loader/register-html-template\');\n';
     }
 
-    const htmlLoaderOptions = Object.assign({}, htmlLoaderDefaultOptions, this.options.htmlLoader || {}, { minifyCSS: false });
+    const htmlLoaderOptions = Object.assign({}, htmlLoaderDefaultOptions, this.options.htmlLoader || {});
     if (htmlLoaderOptions.exportAsDefault) {
       delete htmlLoaderOptions.exportAsDefault;
     }
@@ -144,20 +114,48 @@ class ProcessHtml {
     // After styles are processed, replace the special comments with the rewritten
     // style contents
     return stylesWalked.then((styleMap) => {
-      function replacePolymerStylePlaceholders(match, g1) {
-        if (!styleMap.has(g1)) {
+      // Put the contents of the style tag processed by postcss back in the element
+      styleElements.forEach((style) => {
+        const originalTextContent = getTextContent(style);
+        if (originalTextContent.indexOf(STYLE_ID_PREFIX) >= 0) {
+          const replacedTextContent = originalTextContent.replace(STYLE_ID_EXPR, (match, g1) => {
+            if (!styleMap.has(g1)) {
+              return match;
+            }
+            return styleMap.get(g1);
+          });
+          setTextContent(style, replacedTextContent);
+        }
+      });
+
+      // Style URLS were replaced with placeholders
+      // Replace the placeholders with ```require``` calls
+      function replaceStyleUrls(match) {
+        if (!styleMap.has(match)) {
           return match;
         }
-        return `" + ${styleMap.get(g1)} + "`;
+        let rewrittenUrl = styleMap.get(match);
+        let queryIndex = rewrittenUrl.indexOf('?#');
+        if (rewrittenUrl < 0) {
+          queryIndex = rewrittenUrl.indexOf('#');
+        }
+        let urlSuffix = '';
+        // queryIndex === 0 is caught by isUrlRequest
+        if (queryIndex > 0) {
+          // in cases like url('webfont.eot?#iefix')
+          urlSuffix = url.substr(queryIndex);
+          rewrittenUrl = url.substr(0, queryIndex);
+        }
+        return `'" + require(${JSON.stringify(rewrittenUrl)}) + "${urlSuffix}'`;
       }
 
       const toBodyContent = toBodyArray.map(node =>
-        addImageDependencies(node, htmlLoaderOptions)
-          .replace(STYLE_ID_EXPR, replacePolymerStylePlaceholders));
+        ProcessHtml.htmlLoader(node, htmlLoaderOptions)
+          .replace(STYLE_URL_EXPR, replaceStyleUrls));
 
       const domModuleContent = domModuleArray.map(node =>
-        addImageDependencies(node, htmlLoaderOptions)
-          .replace(STYLE_ID_EXPR, replacePolymerStylePlaceholders));
+        ProcessHtml.htmlLoader(node, htmlLoaderOptions)
+          .replace(STYLE_URL_EXPR, replaceStyleUrls));
 
       source += ProcessHtml.buildRuntimeSource(toBodyContent, RuntimeRegistrationType.BODY);
       source += ProcessHtml.buildRuntimeSource(domModuleContent, RuntimeRegistrationType.DOM_MODULE);
@@ -309,8 +307,19 @@ class ProcessHtml {
       this.currentStyleId_ += 1;
       const styleContent = getTextContent(styleElement);
 
+      // No need to run through postcss unless there are url() statements
+      if (styleContent.indexOf('url(') < 0) {
+        return;
+      }
+
       const parserCssOptions = {
         root: styleContent,
+        urlMap: styleMap,
+        getNextIndex: () => {
+          const nextId = this.currentStyleId_;
+          this.currentStyleId_ += 1;
+          return nextId;
+        },
       };
       const postcssPipeline = postcss([ProcessHtml.postcssParserPlugin(parserCssOptions)]);
       const options = {
@@ -321,27 +330,7 @@ class ProcessHtml {
       };
       processStylePromises.push(postcssPipeline.process(styleContent, options)
         .then((result) => {
-          const css = JSON.stringify(result.css)
-            .replace(STYLE_URL_EXPR, (match, g1) => {
-              const index = parseInt(g1, 10);
-              if (index >= (parserCssOptions.urlItems || []).length) {
-                return match;
-              }
-              let rewrittenUrl = parserCssOptions.urlItems[index].url;
-              let queryIndex = rewrittenUrl.indexOf('?#');
-              if (rewrittenUrl < 0) {
-                queryIndex = rewrittenUrl.indexOf('#');
-              }
-              let urlSuffix = '';
-              // queryIndex === 0 is caught by isUrlRequest
-              if (queryIndex > 0) {
-                // in cases like url('webfont.eot?#iefix')
-                urlSuffix = url.substr(queryIndex);
-                rewrittenUrl = url.substr(0, queryIndex);
-              }
-              return `" + require(${JSON.stringify(parserCssOptions.urlItems[index].url)}) + "${urlSuffix}`;
-            });
-          styleMap.set(id, css);
+          styleMap.set(id, result.css);
         }));
 
       // replace all the style content with a unique id we can look it up later
@@ -417,6 +406,36 @@ class ProcessHtml {
   }
 
   /**
+   * Given an HTML Element, run the serialized content through the html-loader
+   * to add require statements for images.
+   * 
+   * @param {HTMLElement} content 
+   * @param {Object} options
+   * @return {string}
+   */
+  static htmlLoader(node, options) {
+    // need to create an object with a childNodes array so parse5.serialize
+    // will return the actual node and not just it's child nodes.
+    const parseObject = {
+      childNodes: [node],
+    };
+
+    // Run the html-loader for all HTML content so that images are
+    // added to the dependency graph
+    const serializedSource = parse5.serialize(parseObject);
+    let minifiedSource = htmlLoader.call({
+      options: {
+        htmlLoader: options,
+      },
+    }, serializedSource);
+    if (minifiedSource) {
+      minifiedSource = minifiedSource.substr('module.exports = '.length);
+      minifiedSource = minifiedSource.replace(/;\s*$/, '');
+    }
+    return minifiedSource;
+  }
+
+  /**
    * postcss parser plugin to update url()s
    * Url records are added to the parserOptions argument which
    * is passed in.
@@ -425,9 +444,6 @@ class ProcessHtml {
    */
   static postcssPlugin(parserOptions) {
     return (css) => {
-      const options = parserOptions;
-      const urlItems = [];
-
       function processNode(node) {
         const item = node;
         switch (item.type) {
@@ -448,10 +464,9 @@ class ProcessHtml {
               delete item.innerSpacingBefore;
               delete item.innerSpacingAfter;
               const itemUrl = item.url;
-              item.url = `${STYLE_URL_PREFIX}${urlItems.length}__`;
-              urlItems.push({
-                url: loaderUtils.urlToRequest(itemUrl, parserOptions.root),
-              });
+              const urlId = `${STYLE_URL_PREFIX}${parserOptions.getNextIndex()}__`;
+              parserOptions.urlMap.set(urlId, loaderUtils.urlToRequest(itemUrl, parserOptions.root));
+              item.url = urlId;
             }
             break;
 
@@ -468,8 +483,6 @@ class ProcessHtml {
         });
         localDecl.value = Tokenizer.stringifyValues(values);
       });
-
-      options.urlItems = urlItems;
     };
   }
 }
