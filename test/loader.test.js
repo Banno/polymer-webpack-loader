@@ -272,6 +272,49 @@ describe('loader', () => {
       };
       loader.call(opts, '<dom-module><template><link rel="stylesheet" href="./test.css"></link></template></dom-module>');
     });
+
+    test('ignores css link if flag is not set', (done) => {
+      opts.async = () => (err, source, map) => {
+        expect(err).toBe(null);
+        expect(normalisePaths(source)).toMatchSnapshot();
+        expect(map).toBe(undefined);
+        done();
+      };
+      loader.call(opts, '<dom-module><template><link rel="stylesheet" href="./test.css"></template></dom-module>');
+    });
+
+    test('rewrites css link tags with rel stylesheet', (done) => {
+      opts.query.processStyleLinks = 'true';
+      opts.async = () => (err, source, map) => {
+        expect(err).toBe(null);
+        expect(normalisePaths(source)).toMatchSnapshot();
+        expect(map).toBe(undefined);
+        done();
+      };
+      loader.call(opts, '<dom-module id="x-foo"><template><link rel="stylesheet" href="test.css"></template></dom-module>');
+    });
+
+    test('rewrites css link tags with rel import', (done) => {
+      opts.query.processStyleLinks = true;
+      opts.async = () => (err, source, map) => {
+        expect(err).toBe(null);
+        expect(normalisePaths(source)).toMatchSnapshot();
+        expect(map).toBe(undefined);
+        done();
+      };
+      loader.call(opts, '<dom-module id="x-foo"><template><link rel="import" type="css" href="test.css"></template></dom-module>');
+    });
+
+    test('rewrites multiple css link tags', (done) => {
+      opts.query.processStyleLinks = true;
+      opts.async = () => (err, source, map) => {
+        expect(err).toBe(null);
+        expect(normalisePaths(source)).toMatchSnapshot();
+        expect(map).toBe(undefined);
+        done();
+      };
+      loader.call(opts, '<dom-module id="x-foo"><link rel="stylesheet" href="test1.css"><template><link rel="stylesheet" href="test2.css"></template></dom-module>');
+    });
   });
 
   describe('scripts', () => {

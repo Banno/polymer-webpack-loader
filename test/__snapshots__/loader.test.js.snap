@@ -48,6 +48,14 @@ RegisterHtmlTemplate.register(\\"<dom-module><template><link rel=\\\\\\"styleshe
 "
 `;
 
+exports[`loader domModule ignores css link if flag is not set 2`] = `
+"
+const RegisterHtmlTemplate = require('polymer-webpack-loader/register-html-template');
+
+RegisterHtmlTemplate.register(\\"<dom-module><template><link rel=\\\\\\"stylesheet\\\\\\" href=\\\\\\"./test.css\\\\\\"></template></dom-module>\\");
+"
+`;
+
 exports[`loader domModule ignores invalid HTML 1`] = `""`;
 
 exports[`loader domModule keeps css link tags with import 1`] = `
@@ -109,6 +117,30 @@ const RegisterHtmlTemplate = require('polymer-webpack-loader/register-html-templ
 RegisterHtmlTemplate.register(\\"<dom-module id=\\\\\\"x-foo\\\\\\"></dom-module>\\");
 
 var x = 1;
+"
+`;
+
+exports[`loader domModule rewrites css link tags with rel import 1`] = `
+"
+const RegisterHtmlTemplate = require('polymer-webpack-loader/register-html-template');
+
+RegisterHtmlTemplate.register(\\"<dom-module id=\\\\\\"x-foo\\\\\\"><template><style>\\" + require(\\"./test.css\\") + \\"</style></template></dom-module>\\");
+"
+`;
+
+exports[`loader domModule rewrites css link tags with rel stylesheet 1`] = `
+"
+const RegisterHtmlTemplate = require('polymer-webpack-loader/register-html-template');
+
+RegisterHtmlTemplate.register(\\"<dom-module id=\\\\\\"x-foo\\\\\\"><template><style>\\" + require(\\"./test.css\\") + \\"</style></template></dom-module>\\");
+"
+`;
+
+exports[`loader domModule rewrites multiple css link tags 1`] = `
+"
+const RegisterHtmlTemplate = require('polymer-webpack-loader/register-html-template');
+
+RegisterHtmlTemplate.register(\\"<dom-module id=\\\\\\"x-foo\\\\\\"><template><style>\\" + require(\\"./test1.css\\") + \\"</style><style>\\" + require(\\"./test2.css\\") + \\"</style></template></dom-module>\\");
 "
 `;
 

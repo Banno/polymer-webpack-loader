@@ -41,7 +41,8 @@ The loader transforms your components:
   options: {
     ignoreLinks: Condition(s) (optional),
     ignoreLinksFromPartialMatches: Array<String> (optional),
-    ignorePathReWrite: Condition(s) (optional)
+    ignorePathReWrite: Condition(s) (optional),
+    processStyleLinks: Boolean (optional),
     htmlLoader: Object (optional)
   },
   loader: 'polymer-webpack-loader'
@@ -86,6 +87,33 @@ not be transformed into `import`s.
 documentation) will not be changed when transformed into `import`s. This can
 be useful for respecting aliases, loader syntax (e.g.
 `markup-inline-loader!./my-element.html`), or module paths.
+
+#### processStyleLinks Boolean
+
+If set to true the loader will rewrite `<link import="css" href="...">` or `<link rel="stylesheet" href="...">` that are inside the dom-module with `<style>require('...')</style>`. This will allow for the file to be processed by loaders that are set up in the webpack config to handle their file type. 
+
+1. Any `<link>` that is inside the `<dom-module>` but not in the `<template>` will be added to the `<template>` in the order the tags appear in the file. 
+```html
+  <dom-module>
+    <link rel="stylesheet" href="file1.css">
+    <template>
+      <link rel="stylesheet" href="file2.css">
+    </template>
+  </dom-module>
+
+  would produce
+
+  <dom-module>
+    <template>
+      <style>require('file1.css')</style>
+      <style>require('file2.css')</style>
+    </template>
+  </dom-module>
+
+```
+
+
+2. The loader will only replace a `<link>` if the href is a relative path. Any link attempting to access an external link i.e. `http`, `https` or `//` will not be replaced.
 
 #### htmlLoader: Object
 
