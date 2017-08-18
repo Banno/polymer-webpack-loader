@@ -228,7 +228,7 @@ describe('loader', () => {
     });
 
     test('maintains links to stylesheet with an external url file', () => {
-      loader.call(opts, '<dom-module><template><link rel="stylesheet" href="http://example.com/test.css"></link></template></dom-module>');
+      loader.call(opts, '<dom-module><template><link rel="stylesheet" href="http://example.com/test.css"></template></dom-module>');
 
       const [call] = opts.callback.mock.calls;
       expect(call[0]).toBe(null);
@@ -237,7 +237,7 @@ describe('loader', () => {
     });
 
     test('maintains links to stylesheet with an protocol neutral href', () => {
-      loader.call(opts, '<dom-module><template><link rel="stylesheet" href="//example.com/test.css"></link></template></dom-module>');
+      loader.call(opts, '<dom-module><template><link rel="stylesheet" href="//example.com/test.css"></template></dom-module>');
 
       const [call] = opts.callback.mock.calls;
       expect(call[0]).toBe(null);
@@ -246,7 +246,37 @@ describe('loader', () => {
     });
 
     test('ignores css link if flag is not set', () => {
-      loader.call(opts, '<dom-module><template><link rel="stylesheet" href="./test.css"></link></template></dom-module>');
+      loader.call(opts, '<dom-module><template><link rel="stylesheet" href="./test.css"></template></dom-module>');
+
+      const [call] = opts.callback.mock.calls;
+      expect(call[0]).toBe(null);
+      expect(normalisePaths(call[1])).toMatchSnapshot();
+      expect(call[2]).toBe(undefined);
+    });
+
+    test('rewrites css link tags with rel stylesheet', () => {
+      opts.query.processStyleLinks = 'true';
+      loader.call(opts, '<dom-module id="x-foo"><template><link rel="stylesheet" href="test.css"></template></dom-module>');
+
+      const [call] = opts.callback.mock.calls;
+      expect(call[0]).toBe(null);
+      expect(normalisePaths(call[1])).toMatchSnapshot();
+      expect(call[2]).toBe(undefined);
+    });
+
+    test('rewrites css link tags with rel import', () => {
+      opts.query.processStyleLinks = true;
+      loader.call(opts, '<dom-module id="x-foo"><template><link rel="import" type="css" href="test.css"></template></dom-module>');
+
+      const [call] = opts.callback.mock.calls;
+      expect(call[0]).toBe(null);
+      expect(normalisePaths(call[1])).toMatchSnapshot();
+      expect(call[2]).toBe(undefined);
+    });
+
+    test('rewrites multiple css link tags', () => {
+      opts.query.processStyleLinks = true;
+      loader.call(opts, '<dom-module id="x-foo"><link rel="stylesheet" href="test1.css"><template><link rel="stylesheet" href="test2.css"></template></dom-module>');
 
       const [call] = opts.callback.mock.calls;
       expect(call[0]).toBe(null);

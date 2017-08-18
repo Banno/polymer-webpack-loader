@@ -112,6 +112,30 @@ var x = 1;
 "
 `;
 
+exports[`loader domModule rewrites css link tags with rel import 1`] = `
+"
+const RegisterHtmlTemplate = require('polymer-webpack-loader/register-html-template');
+
+RegisterHtmlTemplate.register(\\"<dom-module id=\\\\\\"x-foo\\\\\\"><template><style>\\"+require('./test.css')+\\"</style></template></dom-module>\\");
+"
+`;
+
+exports[`loader domModule rewrites css link tags with rel stylesheet 1`] = `
+"
+const RegisterHtmlTemplate = require('polymer-webpack-loader/register-html-template');
+
+RegisterHtmlTemplate.register(\\"<dom-module id=\\\\\\"x-foo\\\\\\"><template><style>\\"+require('./test.css')+\\"</style></template></dom-module>\\");
+"
+`;
+
+exports[`loader domModule rewrites multiple css link tags 1`] = `
+"
+const RegisterHtmlTemplate = require('polymer-webpack-loader/register-html-template');
+
+RegisterHtmlTemplate.register(\\"<dom-module id=\\\\\\"x-foo\\\\\\"><template><style>\\"+require('./test1.css')+\\"</style><style>\\"+require('./test2.css')+\\"</style></template></dom-module>\\");
+"
+`;
+
 exports[`loader domModule transforms dom-modules 1`] = `
 "
 const RegisterHtmlTemplate = require('polymer-webpack-loader/register-html-template');
