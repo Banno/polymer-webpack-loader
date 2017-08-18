@@ -78,10 +78,7 @@ class ProcessHtml {
               const rel = getAttribute(domModuleChild, 'rel') || '';
               const type = getAttribute(domModuleChild, 'type') || '';
               if (href && (rel === 'stylesheet' || type === 'css') && !ProcessHtml.isExternalPath(domModuleChild, 'href')) {
-                externalStyleSheetsArray.push({
-                  element: domModuleChild,
-                  domModule: rootNode,
-                });
+                externalStyleSheetsArray.push(domModuleChild);
               }
             }
             if (domModuleChild.tagName === 'template' && this.options.processStyleLinks) {
@@ -92,9 +89,7 @@ class ProcessHtml {
                     const rel = getAttribute(templateChild, 'rel') || '';
                     const type = getAttribute(templateChild, 'type') || '';
                     if (href && (rel === 'stylesheet' || type === 'css') && !ProcessHtml.isExternalPath(templateChild, 'href')) {
-                      externalStyleSheetsArray.push({
-                        element: templateChild,
-                      });
+                      externalStyleSheetsArray.push(templateChild);
                     }
                   }
                 }
@@ -265,7 +260,7 @@ class ProcessHtml {
 
       let path;
       if (shouldRewrite(href)) {
-        path = loaderUtils.urlToRequest(href, this.currentFilePath);
+        path = ProcessHtml.adjustPathIfNeeded(href);
       } else {
         path = href;
       }
@@ -290,7 +285,7 @@ class ProcessHtml {
     scripts.forEach((scriptNode) => {
       const src = getAttribute(scriptNode, 'src') || '';
       if (src) {
-        const path = loaderUtils.urlToRequest(src, this.currentFilePath);
+        const path = ProcessHtml.adjustPathIfNeeded(src);
         source += `\nrequire('${path}');\n`;
         lineCount += 2;
       } else {
@@ -403,16 +398,19 @@ class ProcessHtml {
    * The existing style processing will update the url to a placeholder
    * which will be replaced with a ```require``` call.
    *
-   * @param {Array<{element: HTMLElement, domModule: (HTMLElement|undefined)}>} styles
+   * @param {Array<HTMLElement>} externalStyleSheets
    * @return {Array<HTMLElement>} list of new style elements
    */
   static inlineExternalStylesheets(externalStyleSheets) {
     const newStyleElements = [];
-    externalStyleSheets.forEach((linkElementRecord) => {
+    externalStyleSheets.forEach((linkElement) => {
       const newStyleElement = constructors.element('style');
-      setTextContent(newStyleElement, `@import url(${JSON.stringify(getAttribute(linkElementRecord.element, 'href'))})`);
-      if (linkElementRecord.domModule) {
-        const template = query(linkElementRecord.domModule, predicates.hasTagName('template'));
+      setTextContent(newStyleElement, `@import url(${JSON.stringify(getAttribute(linkElement, 'href'))})`);
+      let domModule = linkElement;
+      for (; domModule && domModule.tagName !== 'dom-module'; domModule = domModule.parentNode);
+
+      if (domModule) {
+        const template = query(domModule, predicates.hasTagName('template'));
         if (!template) {
           return;
         }
@@ -422,9 +420,9 @@ class ProcessHtml {
           append(template.content, newStyleElement);
         }
       } else {
-        insertBefore(linkElementRecord.element.parentNode, linkElementRecord.element, newStyleElement);
+        insertBefore(linkElement.parentNode, linkElement, newStyleElement);
       }
-      remove(linkElementRecord.element);
+      remove(linkElement);
       newStyleElements.push(newStyleElement);
     });
     return newStyleElements;
@@ -522,7 +520,7 @@ class ProcessHtml {
               delete item.innerSpacingAfter;
               const itemUrl = item.url;
               const urlId = `${STYLE_URL_PREFIX}${parserOptions.getNextIndex()}__`;
-              parserOptions.urlMap.set(urlId, loaderUtils.urlToRequest(itemUrl, parserOptions.root));
+              parserOptions.urlMap.set(urlId, ProcessHtml.adjustPathIfNeeded(itemUrl));
               item.url = urlId;
             }
             break;
@@ -553,6 +551,22 @@ class ProcessHtml {
         localRule.params = Tokenizer.stringifyValues(values);
       });
     };
+  }
+
+  /**
+   * Ensure that a path not starting with ```/```, ```./```, ```~``` or ```../``` gets ```./``` prepended.
+   * e.g.
+   * ```
+   * foo.js
+   * becomes:
+   * ./foo.js
+   * ```
+   * @param {string} path link href or script src
+   * @return {string} adjusted path
+   */
+  static adjustPathIfNeeded(path) {
+    const needsAdjusted = /^(?!~|\.{0,2}\/)/.test(path);
+    return needsAdjusted ? `./${path}` : path;
   }
 }
 
