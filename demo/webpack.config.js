@@ -41,6 +41,8 @@ module.exports = {
         // If you see a file that ends in .js, just send it to the babel-loader.
         test: /\.js$/,
         use: 'babel-loader'
+        // Optionally exclude node_modules from transpilation except for polymer-webpack-loader:
+        // exclude: /node_modules\/(?!polymer-webpack-loader\/).*/
       }
     ]
   },
