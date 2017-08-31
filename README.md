@@ -86,7 +86,8 @@ be useful for respecting aliases, loader syntax (e.g.
 
 If set to true the loader will rewrite `<link import="css" href="...">` or `<link rel="stylesheet" href="...">` that are inside the dom-module with `<style>require('...')</style>`. This will allow for the file to be processed by loaders that are set up in the webpack config to handle their file type. 
 
-1. Any `<link>` that is inside the `<dom-module>` but not in the `<template>` will be added to the `<template>` in the order the tags appear in the file. 
+1. Any `<link>` that is inside the `<dom-module>` but not in the `<template>` will be added to the `<template>` in the order the tags appear in the file.
+
 ```html
   <dom-module>
     <link rel="stylesheet" href="file1.css">
@@ -103,9 +104,7 @@ If set to true the loader will rewrite `<link import="css" href="...">` or `<lin
       <style>require('file2.css')</style>
     </template>
   </dom-module>
-
 ```
-
 
 2. The loader will only replace a `<link>` if the href is a relative path. Any link attempting to access an external link i.e. `http`, `https` or `//` will not be replaced.
 
