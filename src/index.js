@@ -1,3 +1,4 @@
+import { format } from 'util';
 import url from 'url';
 import {
   append,
@@ -34,6 +35,13 @@ const htmlLoaderDefaultOptions = {
     inline: ['none'],
   },
 };
+
+const FMT_CSS_IMPORT_URL = '@import url(%s);';
+
+const REGISTER_HTML_TEMPLATE = format(
+  'const RegisterHtmlTemplate = require(%j);',
+  require.resolve('../register-html-template'),
+);
 
 const STYLE_ID_PREFIX = '__POLYMER_WEBPACK_LOADER_STYLE_';
 const STYLE_ID_EXPR = new RegExp(`/\\* (${STYLE_ID_PREFIX}\\d+__) \\*/`, 'g');
@@ -140,7 +148,7 @@ class ProcessHtml {
 
     let source = this.links(linksArray);
     if (toBodyArray.length > 0 || domModuleArray.length > 0) {
-      source += '\nconst RegisterHtmlTemplate = require(\'polymer-webpack-loader/register-html-template\');\n';
+      source = `${source}\n${REGISTER_HTML_TEMPLATE}\n`;
     }
 
     // After styles are processed, replace the special comments with the rewritten
@@ -408,7 +416,9 @@ class ProcessHtml {
     const newStyleElements = [];
     externalStyleSheets.forEach((linkElement) => {
       const newStyleElement = constructors.element('style');
-      setTextContent(newStyleElement, `@import url(${JSON.stringify(getAttribute(linkElement, 'href'))});`);
+      setTextContent(newStyleElement,
+        format(FMT_CSS_IMPORT_URL, getAttribute(linkElement, 'href')));
+
       let domModule = linkElement;
       for (; domModule && domModule.tagName !== 'dom-module'; domModule = domModule.parentNode);
 
