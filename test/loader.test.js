@@ -141,6 +141,16 @@ describe('loader', () => {
       loader.call(opts, '<link rel="import" href="foo.html">' +
         '<link rel="import" href="foofoo.html">');
     });
+
+    test('remove leading ~', (done) => {
+      opts.async = () => (err, source, map) => {
+        expect(err).toBe(null);
+        expect(normalisePaths(source)).toMatchSnapshot();
+        expect(map).toBe(undefined);
+        done();
+      };
+      loader.call(opts, '<link rel="import" href="~foo/foo.html">');
+    });
   });
 
   describe('domModule', () => {
