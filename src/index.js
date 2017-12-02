@@ -346,7 +346,7 @@ class ProcessHtml {
    * Process an array of ```<style>``` elements
    * If the content contains a ```url()``` statement, it is initially replaced
    * with a unique identifier used to match back the postcss processed content.
-   * 
+   *
    * A custom postcss parser plugin replaces all url hrefs with a different
    * unique placeholder. These placeholders are replaced after all processing and
    * minification with ```require``` statements
@@ -397,7 +397,7 @@ class ProcessHtml {
    * Process an array of ```<link rel="stylesheet">``` elements
    * These elements will be replaced with ```<style>``` tags
    * with ```@import url(href)```.
-   * 
+   *
    * The existing style processing will update the url to a placeholder
    * which will be replaced with a ```require``` call.
    *
@@ -466,8 +466,8 @@ class ProcessHtml {
   /**
    * Given an HTML Element, run the serialized content through the html-loader
    * to add require statements for images.
-   * 
-   * @param {HTMLElement} content 
+   *
+   * @param {HTMLElement} content
    * @param {Object} options
    * @return {string}
    */
@@ -497,8 +497,8 @@ class ProcessHtml {
    * postcss parser plugin to update url()s
    * Url records are added to the parserOptions argument which
    * is passed in.
-   * 
-   * @param {Object} cssOptions 
+   *
+   * @param {Object} cssOptions
    */
   static postcssPlugin(parserOptions) {
     return (css) => {
@@ -568,8 +568,12 @@ class ProcessHtml {
    * @return {string} adjusted path
    */
   static adjustPathIfNeeded(path) {
-    const needsAdjusted = /^(?!~|\.{0,2}\/)/.test(path);
-    return needsAdjusted ? `./${path}` : path;
+    if (/^~/.test(path)) {
+      return path.substr(1);
+    } else if (/^\.{0,2}\//.test(path)) {
+      return path;
+    }
+    return `./${path}`;
   }
 }
 

@@ -243,6 +243,12 @@ RegisterHtmlTemplate.toBody(\\"<link rel=\\\\\\"stylesheet\\\\\\" href=\\\\\\"ht
 "
 `;
 
+exports[`loader links remove leading ~ 1`] = `
+"
+require('foo/foo.html');
+"
+`;
+
 exports[`loader links transforms links 1`] = `
 "
 require('./foo.html');
