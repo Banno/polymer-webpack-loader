@@ -1,6 +1,6 @@
 {
   "name": "polymer-webpack-loader",
-  "version": "2.0.1",
+  "version": "2.0.2",
   "description": "WebPack Loader for Polymer Web Components",
   "main": "dist/cjs.js",
   "scripts": {
@@ -70,7 +70,7 @@
     "node": ">= 4.3 < 5.0.0 || >= 5.10"
   },
   "peerDependencies": {
-    "webpack": "^2.0.0 || ^3.0.0"
+    "webpack": "^2.0.0 || ^3.0.0 || ^4.0.0"
   },
   "pre-commit": "lint-staged",
   "lint-staged": {
