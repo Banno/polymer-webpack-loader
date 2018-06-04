@@ -1,6 +1,6 @@
 {
   "name": "polymer-webpack-loader",
-  "version": "2.0.2",
+  "version": "2.0.6",
   "description": "WebPack Loader for Polymer Web Components",
   "main": "dist/cjs.js",
   "scripts": {
@@ -14,6 +14,7 @@
     "lint-staged": "lint-staged",
     "prebuild": "npm run clean",
     "prepublish": "npm run build",
+    "prepare": "npm run build",
     "release": "standard-version",
     "security": "nsp check",
     "test:watch": "jest --watch",
@@ -24,7 +25,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/webpack-contrib/polymer-webpack-loader.git"
+    "url": "git+https://github.com/mjcctech/polymer-webpack-loader.git"
   },
   "author": "bryandcoulter@gmail.com",
   "license": "Apache-2.0",

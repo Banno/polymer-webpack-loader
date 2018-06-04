@@ -2,6 +2,30 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+<a name="2.0.6"></a>
+## [2.0.6](https://github.com/mjcctech/polymer-webpack-loader/compare/v2.0.5...v2.0.6) (2018-04-18)
+
+
+
+<a name="2.0.5"></a>
+## [2.0.5](https://github.com/mjcctech/polymer-webpack-loader/compare/v2.0.4...v2.0.5) (2018-04-18)
+
+
+
+<a name="2.0.4"></a>
+## 2.0.4 (2018-04-18)
+
+
+### Bug Fixes
+
+* remove the leading `~` from paths ([#74](https://github.com/webpack-contrib/polymer-webpack-loader/issues/74)) ([cab1ebd](https://github.com/webpack-contrib/polymer-webpack-loader/commit/cab1ebd))
+
+
+
+# Change Log
+
+All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
+
 2.0.0 / 2017-08-18
 ==================
  * Feature - Rework the `ignoreLinks` option to use webpack conditions. Significantly improves the flexibility of this option.

@@ -177,6 +177,18 @@ describe('loader', () => {
         '<div></div></dom-module>');
     });
 
+    test('transforms dom-modules with assetpath', (done) => {
+      opts.resourcePath = 'src/bower_components/x-foo/x-foo.html';
+      opts.async = () => (err, source, map) => {
+        expect(err).toBe(null);
+        expect(normalisePaths(source)).toMatchSnapshot();
+        expect(map).toBe(undefined);
+        done();
+      };
+      loader.call(opts, '<dom-module id="x-foo">' +
+          '<div></div></dom-module>');
+    });
+
     test('ignore non root level dom-modules', (done) => {
       opts.async = () => (err, source, map) => {
         expect(err).toBe(null);
