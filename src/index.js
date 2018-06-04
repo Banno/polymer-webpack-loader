@@ -205,7 +205,7 @@ class ProcessHtml {
           .replace(STYLE_URL_IMPORT_EXPR, replaceImportUrls)
           .replace(STYLE_URL_EXPR, replaceStyleUrls));
 
-      const assetPath = `${path.relative(path.resolve('./src'), path.dirname(this.currentFilePath)).replace(new RegExp(`\\${path.sep}`, 'g'), '/')}/`;
+      const assetPath = `${path.relative(path.resolve(this.options.componentsDirectory || './src'), path.dirname(this.currentFilePath)).replace(new RegExp(`\\${path.sep}`, 'g'), '/')}/`;
       const assetPathAttribute = assetPath.length > 1 ? ` assetpath=${assetPath} ` : '';
       const domModuleContent = domModuleArray.map(node =>
         ProcessHtml.htmlLoader(node, htmlLoaderOptions)
