@@ -26,9 +26,16 @@ describe('RegisterHtmlTemplate', () => {
       expect(document.body.innerHTML).toBe('');
     });
 
-    test('prepends elements', () => {
+    test('appends elements', () => {
       RegisterHtmlTemplate.toBody('<div id="test"></div>');
       expect(document.body.innerHTML).toBe('<div id="test"></div>');
+      document.body.innerHTML = '';
+    });
+
+    test('appends elements in the right order', () => {
+      RegisterHtmlTemplate.toBody('<div id="test1"></div>');
+      RegisterHtmlTemplate.toBody('<div id="test2"></div>');
+      expect(document.body.innerHTML).toBe('<div id="test1"></div><div id="test2"></div>');
     });
   });
 });
