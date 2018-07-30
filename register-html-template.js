@@ -39,10 +39,10 @@ class RegisterHtmlTemplate {
       div.innerHTML = trimmedVal;
       if (div.firstChild) {
         if (document.body) {
-          document.body.appendChild(div.firstChild, document.body.firstChild);
+          document.body.appendChild(div.firstChild);
         } else {
           document.addEventListener('DOMContentLoaded', () => {
-            document.body.appendChild(div.firstChild, document.body.firstChild);
+            document.body.appendChild(div.firstChild);
           });
         }
       }
