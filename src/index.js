@@ -12,6 +12,7 @@ const htmlLoaderDefaultOptions = {
   minifyCSS: {
     inline: ['none'],
   },
+  removeAttributeQuotes: false,
 };
 const polymerElementIndicatorExpr =
   /\/polymer\/polymer(-element)?\.js|(^|\s|[^\w])PolymerElement(^|\s|[^\w])|@customElement|@polymer|(^|\s|[^\w])customElements\s*\.\s*define\s*\(/;
@@ -95,11 +96,7 @@ function processTaggedTemplateExpressions(content, polymerTemplateExpressions, h
         const expressionParts = [];
         while (expression) {
           if (expression.right.type === 'Literal') {
-            expressionParts.unshift(
-              stringCleanup(
-                expression.right.raw.substr(
-                  0,
-                  expression.right.raw.length + (expressionParts.length === 0 ? -1 : 0))));
+            expressionParts.unshift(stringCleanup(expression.right.value));
           } else {
             addTemplateCreationFunction = true;
             expressionParts.unshift(`\${__createTemplateFromString(${escodegen.generate(expression.right)})}`);
@@ -107,8 +104,7 @@ function processTaggedTemplateExpressions(content, polymerTemplateExpressions, h
           if (expression.left.type === 'BinaryExpression') {
             expression = expression.left;
           } else if (expression.left.type === 'Literal') {
-            expressionParts.unshift(
-              stringCleanup(expression.left.raw.substr(1)));
+            expressionParts.unshift(stringCleanup(expression.left.value));
             expression = null;
           } else {
             addTemplateCreationFunction = true;

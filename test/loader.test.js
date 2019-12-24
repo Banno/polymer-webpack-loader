@@ -138,7 +138,7 @@ describe('loader', () => {
 
   describe('full components', () => {
     test('multiple template methods', (done) => {
-      opts.query.processStyleLinks = true;
+      opts.query.htmlLoader.minimize = true;
       opts.async = () => (err, source /* , map */) => {
         expect(err).toBe(null);
         expect(normalisePaths(source)).toMatchSnapshot();
@@ -163,12 +163,18 @@ class MyElement extends PolymerElement {
     }
   }
   static get styles() {
-    return html\`<style> h1 {background-color: pink; } </style>\`;
+    return html\`<style> 
+        h1 {
+          background-color: pink;
+        }
+      </style>\`;
   }
   static get template() {
     return html\`
       \${MyElement.styles}
-      <h1>Hello, World! It's [[today]].</h1>\`;
+      <h1>
+        Hello, World! It's [[today]].
+      </h1>\`;
   }
 }
 
