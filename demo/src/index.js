@@ -1,1 +1,1 @@
-import './my-element.html';
+import './my-element.js';

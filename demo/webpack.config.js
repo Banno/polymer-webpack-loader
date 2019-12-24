@@ -27,7 +27,7 @@ module.exports = {
     rules: [
       {
         // If you see a file that ends in .html, send it to these loaders.
-        test: /\.html$/,
+        test: /\.js$/,
         // This is an example of chained loaders in Webpack.
         // Chained loaders run last to first. So it will run
         // polymer-webpack-loader, and hand the output to
@@ -38,16 +38,18 @@ module.exports = {
             options: {
               presets: ['@babel/preset-env'],
             },
+            // Optionally exclude node_modules from transpilation except for polymer-webpack-loader:
+            // exclude: /node_modules\/(?!polymer-webpack-loader\/).*/
           },
           { loader: 'polymer-webpack-loader' },
         ],
       },
       {
-        // If you see a file that ends in .js, just send it to the babel-loader.
-        test: /\.js$/,
-        use: 'babel-loader',
-        // Optionally exclude node_modules from transpilation except for polymer-webpack-loader:
-        // exclude: /node_modules\/(?!polymer-webpack-loader\/).*/
+        test: /\.png$/,
+        loader: 'file-loader',
+        options: {
+          name: 'img/[name]-[hash].[ext]',
+        },
       },
     ],
   },
@@ -69,8 +71,8 @@ module.exports = {
     // That's important because the custom-elements-es5-adapter.js MUST
     // remain in ES2015.
     new CopyWebpackPlugin([{
-      from: path.resolve(__dirname, 'bower_components/webcomponentsjs/*.js'),
-      to: 'bower_components/webcomponentsjs/[name].[ext]',
+      from: path.resolve(__dirname, 'node_modules/@webcomponents/webcomponentsjs/*.js'),
+      to: 'node_modules/@webcomponents/webcomponentsjs/[name].[ext]',
     }]),
   ],
 };
