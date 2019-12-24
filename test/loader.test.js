@@ -1,24 +1,35 @@
 /* eslint no-undefined: "off", no-useless-escape: "off" */
 
-import sourceMap from 'source-map';
-import loader from '../src';
+// const sourceMap = require('source-map');
+const loader = require('../src');
 
 const normalisePaths = result => result.replace('src\\\\', 'src/');
 
-function verifySourceMap(generatedSource, map) {
-  const consumer = sourceMap.SourceMapConsumer(map);
-  consumer.eachMapping((mapping) => {
-    if (!mapping.name) {
-      return;
-    }
-    const originalSourceByLine = consumer.sourceContentFor(mapping.source).split('\n');
-    const generatedSourceByLine = generatedSource.split('\n');
+// function verifySourceMap(generatedSource, map) {
+//   const consumer = sourceMap.SourceMapConsumer(map);
+//   consumer.eachMapping((mapping) => {
+//     if (!mapping.name) {
+//       return;
+//     }
+//     const originalSourceByLine = consumer.sourceContentFor(mapping.source).split('\n');
+//     const generatedSourceByLine = generatedSource.split('\n');
+//
+//     expect(generatedSourceByLine[mapping.generatedLine - 1].substr(mapping.generatedColumn, mapping.name.length))
+//       .toBe(mapping.name);
+//     expect(originalSourceByLine[mapping.originalLine - 1].substr(mapping.originalColumn, mapping.name.length))
+//       .toBe(mapping.name);
+//   });
+// }
 
-    expect(generatedSourceByLine[mapping.generatedLine - 1].substr(mapping.generatedColumn, mapping.name.length))
-      .toBe(mapping.name);
-    expect(originalSourceByLine[mapping.originalLine - 1].substr(mapping.originalColumn, mapping.name.length))
-      .toBe(mapping.name);
-  });
+function addTemplateToPolymerElement(templateValue) {
+  return `import {PolymerElement, html} from "@polymer/polymer/polymer-element.js";
+
+class FooElement extends PolymerElement {
+  static get is() { return "foo-element"; }
+  static get template() { return html\`${templateValue}\`; }
+}
+customElements.define(FooElement.is, FooElement);
+`;
 }
 
 describe('loader', () => {
@@ -26,7 +37,7 @@ describe('loader', () => {
 
   beforeEach(() => {
     opts = {
-      resourcePath: 'src/test.html',
+      resourcePath: 'src/test.js',
       query: {
         htmlLoader: {
           minimize: false,
@@ -44,7 +55,7 @@ describe('loader', () => {
       expect(map).toBe(undefined);
       done();
     };
-    loader.call(opts, '<div></div>');
+    loader.call(opts, 'class Foo {}');
   });
 
   test('can process without options', (done) => {
@@ -55,336 +66,7 @@ describe('loader', () => {
       expect(map).toBe(undefined);
       done();
     };
-    loader.call(opts, '<div></div>');
-  });
-
-  describe('links', () => {
-    test('transforms links', (done) => {
-      opts.async = () => (err, source, map) => {
-        expect(err).toBe(null);
-        expect(normalisePaths(source)).toMatchSnapshot();
-        expect(map).toBe(undefined);
-        done();
-      };
-      loader.call(opts, '<link rel="import" href="foo.html">');
-    });
-
-    test('ignores links with invalid href', (done) => {
-      opts.async = () => (err, source, map) => {
-        expect(err).toBe(null);
-        expect(normalisePaths(source)).toMatchSnapshot();
-        expect(map).toBe(undefined);
-        done();
-      };
-      loader.call(opts, '<link rel="import" href="">');
-    });
-
-    test('ignores stylesheet links with external href', (done) => {
-      opts.async = () => (err, source, map) => {
-        expect(err).toBe(null);
-        expect(normalisePaths(source)).toMatchSnapshot();
-        expect(map).toBe(undefined);
-        done();
-      };
-      loader.call(opts, '<link rel="stylesheet" href="https://example.com/foo.html">');
-    });
-
-    test('ignores import links with external href', (done) => {
-      opts.async = () => (err, source, map) => {
-        expect(err).toBe(null);
-        expect(normalisePaths(source)).toMatchSnapshot();
-        expect(map).toBe(undefined);
-        done();
-      };
-      loader.call(opts, '<link rel="import" href="https://example.com/foo.html">');
-    });
-
-    test('ignoreLinks option', (done) => {
-      opts.query.ignoreLinks = [
-        'foo.html',
-        '/bar',
-        /node_modules/,
-      ];
-      opts.async = () => (err, source, map) => {
-        expect(err).toBe(null);
-        expect(normalisePaths(source)).toMatchSnapshot();
-        expect(map).toBe(undefined);
-        done();
-      };
-      loader.call(opts, '<link rel="import" href="foo.html">' +
-         '<link rel="import" href="foofoo.html">' +
-         '<link rel="import" href="/bar/foo.html">' +
-         '<link rel="import" href="../../node_modules/some-module/some-element.html">',
-      );
-    });
-
-    test('ignoreLinksFromPartialMatches option', (done) => {
-      opts.query.ignoreLinksFromPartialMatches = ['foo.html'];
-      opts.async = () => (err, source, map) => {
-        expect(err).toBe(null);
-        expect(normalisePaths(source)).toMatchSnapshot();
-        expect(map).toBe(undefined);
-        done();
-      };
-      loader.call(opts, '<link rel="import" href="foo.html">' +
-        '<link rel="import" href="foofoo.html">');
-    });
-
-    test('ignorePathReWrite option', (done) => {
-      opts.query.ignorePathReWrite = ['foo.html'];
-      opts.async = () => (err, source, map) => {
-        expect(err).toBe(null);
-        expect(normalisePaths(source)).toMatchSnapshot();
-        expect(map).toBe(undefined);
-        done();
-      };
-      loader.call(opts, '<link rel="import" href="foo.html">' +
-        '<link rel="import" href="foofoo.html">');
-    });
-
-    test('remove leading ~', (done) => {
-      opts.async = () => (err, source, map) => {
-        expect(err).toBe(null);
-        expect(normalisePaths(source)).toMatchSnapshot();
-        expect(map).toBe(undefined);
-        done();
-      };
-      loader.call(opts, '<link rel="import" href="~foo/foo.html">');
-    });
-  });
-
-  describe('domModule', () => {
-    test('transforms dom-modules', (done) => {
-      opts.async = () => (err, source, map) => {
-        expect(err).toBe(null);
-        expect(normalisePaths(source)).toMatchSnapshot();
-        expect(map).toBe(undefined);
-        done();
-      };
-      loader.call(opts, '<dom-module id="x-foo">' +
-        '<div></div></dom-module>');
-    });
-
-    test('transforms multiple dom-modules', (done) => {
-      opts.async = () => (err, source, map) => {
-        expect(err).toBe(null);
-        expect(normalisePaths(source)).toMatchSnapshot();
-        expect(map).toBe(undefined);
-        done();
-      };
-      loader.call(opts, '<dom-module id="x-foo">' +
-        '<div></div></dom-module><dom-module id="x-foo-foo">' +
-        '<div></div></dom-module>');
-    });
-
-    test('ignore non root level dom-modules', (done) => {
-      opts.async = () => (err, source, map) => {
-        expect(err).toBe(null);
-        expect(normalisePaths(source)).toMatchSnapshot();
-        expect(map).toBe(undefined);
-        done();
-      };
-      loader.call(opts, '<template><dom-module id="x-foo">' +
-        '<div></div></dom-module></template>');
-    });
-
-    test('ignores invalid HTML', (done) => {
-      opts.async = () => (err, source, map) => {
-        expect(err).toBe(null);
-        expect(normalisePaths(source)).toMatchSnapshot();
-        expect(map).toBe(undefined);
-        done();
-      };
-      loader.call(opts, '</td>');
-    });
-
-    test('ignore script tags in a template', (done) => {
-      opts.async = () => (err, source, map) => {
-        expect(err).toBe(null);
-        expect(normalisePaths(source)).toMatchSnapshot();
-        expect(map).toBe(undefined);
-        done();
-      };
-      loader.call(opts, '<dom-module id="x-foo"><template>' +
-        '<script>var x = 1;</script></template></dom-module>');
-    });
-
-    test('removes script tags without a source', (done) => {
-      opts.async = () => (err, source, map) => {
-        expect(err).toBe(null);
-        expect(normalisePaths(source)).toMatchSnapshot();
-        expect(map).not.toBe(undefined);
-        verifySourceMap(source, map);
-        done();
-      };
-      loader.call(opts, '<dom-module id="x-foo">' +
-        '<script>var x = 1;</script></dom-module>');
-    });
-
-    test('removes script tags without a protocol', (done) => {
-      opts.async = () => (err, source, map) => {
-        expect(err).toBe(null);
-        expect(normalisePaths(source)).toMatchSnapshot();
-        expect(map).toBe(undefined);
-        done();
-      };
-      loader.call(opts, '<dom-module id="x-foo">' +
-        '<script src="foo.js"></script></dom-module>');
-    });
-
-    test('removes link tags', (done) => {
-      opts.async = () => (err, source, map) => {
-        expect(err).toBe(null);
-        expect(normalisePaths(source)).toMatchSnapshot();
-        expect(map).toBe(undefined);
-        done();
-      };
-      loader.call(opts, '<link rel="import" href="test.html">' +
-        '<dom-module id="x-foo"></dom-module>');
-    });
-
-    test('keeps css link tags with import', (done) => {
-      opts.async = () => (err, source, map) => {
-        expect(err).toBe(null);
-        expect(normalisePaths(source)).toMatchSnapshot();
-        expect(map).toBe(undefined);
-        done();
-      };
-      loader.call(opts, '<dom-module id="x-foo">' +
-        '<link rel="import" type="css" href="test.css"></dom-module>');
-    });
-
-    test('keeps css link tags with rel stylesheet', (done) => {
-      opts.async = () => (err, source, map) => {
-        expect(err).toBe(null);
-        expect(normalisePaths(source)).toMatchSnapshot();
-        expect(map).toBe(undefined);
-        done();
-      };
-      loader.call(opts, '<dom-module id="x-foo">' +
-        '<link rel="stylesheet" href="test.css"></dom-module>');
-    });
-
-    test('adds to body if no dom-module', (done) => {
-      opts.async = () => (err, source, map) => {
-        expect(err).toBe(null);
-        expect(normalisePaths(source)).toMatchSnapshot();
-        expect(map).toBe(undefined);
-        done();
-      };
-      loader.call(opts, '<span></span>');
-    });
-
-    test('maintains links to stylesheet with an external url file', (done) => {
-      opts.async = () => (err, source, map) => {
-        expect(err).toBe(null);
-        expect(normalisePaths(source)).toMatchSnapshot();
-        expect(map).toBe(undefined);
-        done();
-      };
-      loader.call(opts, '<dom-module><template><link rel="stylesheet" href="http://example.com/test.css"></link></template></dom-module>');
-    });
-
-    test('maintains links to stylesheet with an protocol neutral href', (done) => {
-      opts.async = () => (err, source, map) => {
-        expect(err).toBe(null);
-        expect(normalisePaths(source)).toMatchSnapshot();
-        expect(map).toBe(undefined);
-        done();
-      };
-      loader.call(opts, '<dom-module><template><link rel="stylesheet" href="//example.com/test.css"></link></template></dom-module>');
-    });
-
-    test('ignores css link if flag is not set', (done) => {
-      opts.async = () => (err, source, map) => {
-        expect(err).toBe(null);
-        expect(normalisePaths(source)).toMatchSnapshot();
-        expect(map).toBe(undefined);
-        done();
-      };
-      loader.call(opts, '<dom-module><template><link rel="stylesheet" href="./test.css"></link></template></dom-module>');
-    });
-
-    test('ignores css link if flag is not set', (done) => {
-      opts.async = () => (err, source, map) => {
-        expect(err).toBe(null);
-        expect(normalisePaths(source)).toMatchSnapshot();
-        expect(map).toBe(undefined);
-        done();
-      };
-      loader.call(opts, '<dom-module><template><link rel="stylesheet" href="./test.css"></template></dom-module>');
-    });
-
-    test('rewrites css link tags with rel stylesheet', (done) => {
-      opts.query.processStyleLinks = 'true';
-      opts.async = () => (err, source, map) => {
-        expect(err).toBe(null);
-        expect(normalisePaths(source)).toMatchSnapshot();
-        expect(map).toBe(undefined);
-        done();
-      };
-      loader.call(opts, '<dom-module id="x-foo"><template><link rel="stylesheet" href="test.css"></template></dom-module>');
-    });
-
-    test('rewrites css link tags with rel import', (done) => {
-      opts.query.processStyleLinks = true;
-      opts.async = () => (err, source, map) => {
-        expect(err).toBe(null);
-        expect(normalisePaths(source)).toMatchSnapshot();
-        expect(map).toBe(undefined);
-        done();
-      };
-      loader.call(opts, '<dom-module id="x-foo"><template><link rel="import" type="css" href="test.css"></template></dom-module>');
-    });
-
-    test('rewrites multiple css link tags', (done) => {
-      opts.query.processStyleLinks = true;
-      opts.async = () => (err, source, map) => {
-        expect(err).toBe(null);
-        expect(normalisePaths(source)).toMatchSnapshot();
-        expect(map).toBe(undefined);
-        done();
-      };
-      loader.call(opts, '<dom-module id="x-foo"><link rel="stylesheet" href="test1.css"><template><link rel="stylesheet" href="test2.css"></template></dom-module>');
-    });
-  });
-
-  describe('scripts', () => {
-    test('transforms scripts with a source into imports', (done) => {
-      opts.async = () => (err, source, map) => {
-        expect(err).toBe(null);
-        expect(normalisePaths(source)).toMatchSnapshot();
-        expect(map).toBe(undefined);
-        done();
-      };
-      loader.call(opts, '<script src="foo.js"></script>');
-    });
-
-    test('maintains external scripts', (done) => {
-      opts.async = () => (err, source, map) => {
-        expect(err).toBe(null);
-        expect(normalisePaths(source)).toMatchSnapshot();
-        expect(map).toBe(undefined);
-        done();
-      };
-      loader.call(opts, '<script src="http://example.com/test.js"></script>');
-    });
-
-    test('maintains inline scripts', (done) => {
-      opts.async = () => (err, source, map) => {
-        expect(err).toBe(null);
-        expect(normalisePaths(source)).toMatchSnapshot();
-        expect(map).not.toBe(undefined);
-        verifySourceMap(source, map);
-        done();
-      };
-      loader.call(opts, `<script>var x = 5;
-        function foobar(arg) {
-          var y = 6;
-        
-        }
-      </script>`);
-    });
+    loader.call(opts, 'class Foo {}');
   });
 
   describe('html-loader', () => {
@@ -395,7 +77,7 @@ describe('loader', () => {
         expect(map).toBe(undefined);
         done();
       };
-      loader.call(opts, '<img src="foo.jpg" />');
+      loader.call(opts, addTemplateToPolymerElement('<img src="foo.jpg" />'));
     });
 
     test('html is minimized when option is set', (done) => {
@@ -406,91 +88,92 @@ describe('loader', () => {
         done();
       };
       opts.query.htmlLoader.minimize = true;
-      loader.call(opts, '<script src="http://example.com/test.js"></script>');
+      loader.call(opts, addTemplateToPolymerElement(`<div id="foo">
+  some text
+</div>`));
     });
   });
 
-  describe('styles', () => {
-    test('in body have url() calls replaced with require statements', (done) => {
-      opts.async = () => (err, source, map) => {
-        expect(err).toBe(null);
-        expect(normalisePaths(source)).toMatchSnapshot();
-        expect(map).toBe(undefined);
-        done();
-      };
-      loader.call(opts, '<style>* {background-image: url("foo.jpg");}</style>');
-    });
-
-    test('in templates have url() calls replaced with require statements', (done) => {
-      opts.async = () => (err, source, map) => {
-        expect(err).toBe(null);
-        expect(normalisePaths(source)).toMatchSnapshot();
-        expect(map).toBe(undefined);
-        done();
-      };
-      loader.call(opts, '<template><style>* {background-image: url("foo.jpg");}</style></template>');
-    });
-
-    test('font url() are properly formatted', (done) => {
-      opts.async = () => (err, source, map) => {
-        expect(err).toBe(null);
-        expect(normalisePaths(source)).toMatchSnapshot();
-        expect(map).toBe(undefined);
-        done();
-      };
-      loader.call(opts, `<style>
-        @font-face {
-          font-family: 'MyWebFont';
-          src: url('webfont.eot'); /* IE9 Compat Modes */
-          src: url('webfont.eot?#iefix') format('embedded-opentype'), /* IE6-IE8 */
-              url('webfont.woff2') format('woff2'), /* Super Modern Browsers */
-              url('webfont.woff') format('woff'), /* Pretty Modern Browsers */
-              url('webfont.ttf')  format('truetype'), /* Safari, Android, iOS */
-              url('webfont.svg#svgFontName') format('svg'); /* Legacy iOS */
-        }
-      </style>`);
-    });
-  });
+  // describe('styles', () => {
+  //   test('in body have url() calls replaced with require statements', (done) => {
+  //     opts.async = () => (err, source, map) => {
+  //       expect(err).toBe(null);
+  //       expect(normalisePaths(source)).toMatchSnapshot();
+  //       expect(map).toBe(undefined);
+  //       done();
+  //     };
+  //     loader.call(opts, '<style>* {background-image: url("foo.jpg");}</style>');
+  //   });
+  //
+  //   test('in templates have url() calls replaced with require statements', (done) => {
+  //     opts.async = () => (err, source, map) => {
+  //       expect(err).toBe(null);
+  //       expect(normalisePaths(source)).toMatchSnapshot();
+  //       expect(map).toBe(undefined);
+  //       done();
+  //     };
+  //     loader.call(opts, '<template><style>* {background-image: url("foo.jpg");}</style></template>');
+  //   });
+  //
+  //   test('font url() are properly formatted', (done) => {
+  //     opts.async = () => (err, source, map) => {
+  //       expect(err).toBe(null);
+  //       expect(normalisePaths(source)).toMatchSnapshot();
+  //       expect(map).toBe(undefined);
+  //       done();
+  //     };
+  //     loader.call(opts, `<style>
+  //       @font-face {
+  //         font-family: 'MyWebFont';
+  //         src: url('webfont.eot'); /* IE9 Compat Modes */
+  //         src: url('webfont.eot?#iefix') format('embedded-opentype'), /* IE6-IE8 */
+  //             url('webfont.woff2') format('woff2'), /* Super Modern Browsers */
+  //             url('webfont.woff') format('woff'), /* Pretty Modern Browsers */
+  //             url('webfont.ttf')  format('truetype'), /* Safari, Android, iOS */
+  //             url('webfont.svg#svgFontName') format('svg'); /* Legacy iOS */
+  //       }
+  //     </style>`);
+  //   });
+  // });
 
   describe('full components', () => {
-    test('external stylesheets', (done) => {
+    test('multiple template methods', (done) => {
       opts.query.processStyleLinks = true;
-      opts.async = () => (err, source, map) => {
+      opts.async = () => (err, source /* , map */) => {
         expect(err).toBe(null);
         expect(normalisePaths(source)).toMatchSnapshot();
-        expect(map).not.toBe(undefined);
-        verifySourceMap(source, map);
+        // expect(map).not.toBe(undefined);
+        // verifySourceMap(source, map);
         done();
       };
-      loader.call(opts, `<link rel="import" href="../bower_components/polymer/polymer-element.html">
-      
-      <dom-module id="my-element">
-        <link rel="stylesheet" href="outside.css">
-        <template>
-          <link rel="stylesheet" href="inside.css">
-          <h1>Hello, World! It's [[today]].</h1>
-        </template>
-        <script>
-          // Heyyyy, we're pulling in a Node module!
-          import format from 'date-fns/format';
-          
-         class MyElement extends Polymer.Element {
-            static get is() { return 'my-element'; }
-            static get properties() {
-              return {
-                today: {
-                  type: String,
-                  value: function() {
-                    return format(new Date(), 'MM/DD/YYYY');
-                  }
-                }
-              }
-            }
-          }
-      
-         window.customElements.define(MyElement.is, MyElement);
-        </script>
-      </dom-module>`);
+      loader.call(opts, `
+import format from 'date-fns/format';
+import {PolymerElement, html} from '@polymer/polymer/polymer-element.js';  
+
+class MyElement extends PolymerElement {
+  static get is() { return 'my-element'; }
+  static get properties() {
+    return {
+      today: {
+        type: String,
+        value: function() {
+          return format(new Date(), 'MM/DD/YYYY');
+        }
+      }
+    }
+  }
+  static get styles() {
+    return html\`<style> h1 {background-color: pink; } </style>\`;
+  }
+  static get template() {
+    return html\`
+      \${MyElement.styles}
+      <h1>Hello, World! It's [[today]].</h1>\`;
+  }
+}
+
+window.customElements.define(MyElement.is, MyElement);
+`);
     });
   });
 });

@@ -1,8 +1,10 @@
-import { Parser as parser } from 'acorn';
-import { simple as walk } from 'acorn-walk';
-import htmlLoader from 'html-loader';
-import escodegen from 'escodegen';
-import loaderUtils from 'loader-utils';
+const acorn = require('acorn');
+const walk = require('acorn-walk');
+const htmlLoader = require('html-loader');
+const escodegen = require('escodegen');
+const loaderUtils = require('loader-utils');
+
+const parser = acorn.Parser;
 
 const htmlLoaderDefaultOptions = {
   minimize: true,
@@ -28,7 +30,7 @@ function findHtmlTaggedTemplateLiterals(content) {
 
   let htmlTagSymbol;
   const polymerTemplateExpressions = [];
-  walk(tokens, {
+  walk.simple(tokens, {
     ImportDeclaration(node) {
       let specifiers = [];
       if (/@polymer\/polymer\/polymer-(element|legacy)\.js$/.test(node.source.value) ||
@@ -137,10 +139,12 @@ function processTaggedTemplateExpressions(content, polymerTemplateExpressions, h
 }
 
 // eslint-disable-next-line no-unused-vars
-export default function entry(content, sourceMap) {
+module.exports = function entry(content, sourceMap) {
+  const callback = this.async();
   // See if the contents contain any indicator that this might be a Polymer Element. If not, avoid parsing.
   if (!polymerElementIndicatorExpr.test(content)) {
-    return content;
+    callback(null, content, sourceMap);
+    return;
   }
 
   const polymerTemplateExpressions = findHtmlTaggedTemplateLiterals(content);
@@ -153,5 +157,6 @@ export default function entry(content, sourceMap) {
     delete htmlLoaderOptions.exportAsEs6Default;
   }
 
-  return processTaggedTemplateExpressions(content, polymerTemplateExpressions, htmlLoaderOptions);
-}
+  const newContent = processTaggedTemplateExpressions(content, polymerTemplateExpressions, htmlLoaderOptions);
+  callback(null, newContent);
+};

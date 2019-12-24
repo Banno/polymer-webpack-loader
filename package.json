@@ -8,12 +8,8 @@
     "webpack-defaults": "webpack-defaults",
     "start": "npm run build -- -w",
     "appveyor:test": "npm run test",
-    "build": "cross-env NODE_ENV=production babel src -d dist --ignore 'src/**/*.test.js'",
-    "clean": "del-cli dist",
     "lint": "eslint --cache src test *.js",
     "lint-staged": "lint-staged",
-    "prebuild": "npm run clean",
-    "prepublish": "npm run build",
     "release": "standard-version",
     "test:watch": "jest --watch",
     "test:coverage": "jest --collectCoverageFrom='src/**/*.js' --coverage",
@@ -33,7 +29,6 @@
   "homepage": "https://github.com/webpack-contrib/polymer-webpack-loader#readme",
   "dependencies": {
     "acorn": "^7.1.0",
-    "acorn-dynamic-import": "^4.0.0",
     "acorn-walk": "^7.0.0",
     "css-selector-tokenizer": "^0.7.0",
     "escodegen": "^1.12.0",
@@ -43,12 +38,7 @@
     "source-map": "^0.5.6"
   },
   "devDependencies": {
-    "@babel/cli": "^7.7.7",
-    "@babel/plugin-proposal-object-rest-spread": "^7.7.7",
-    "@babel/polyfill": "^7.7.0",
-    "@babel/preset-env": "^7.7.7",
     "@webpack-contrib/defaults": "^6.3.0",
-    "babel-jest": "^24.9.0",
     "cross-env": "^5.0.1",
     "del-cli": "^1.1.0",
     "eslint": "^4.2.0",
@@ -61,7 +51,7 @@
     "webpack": "4.x"
   },
   "files": [
-    "dist"
+    "src"
   ],
   "engines": {
     "node": ">= 4.3 < 5.0.0 || >= 5.10"
