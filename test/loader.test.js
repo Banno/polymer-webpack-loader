@@ -94,47 +94,62 @@ describe('loader', () => {
     });
   });
 
-  // describe('styles', () => {
-  //   test('in body have url() calls replaced with require statements', (done) => {
-  //     opts.async = () => (err, source, map) => {
-  //       expect(err).toBe(null);
-  //       expect(normalisePaths(source)).toMatchSnapshot();
-  //       expect(map).toBe(undefined);
-  //       done();
-  //     };
-  //     loader.call(opts, '<style>* {background-image: url("foo.jpg");}</style>');
-  //   });
-  //
-  //   test('in templates have url() calls replaced with require statements', (done) => {
-  //     opts.async = () => (err, source, map) => {
-  //       expect(err).toBe(null);
-  //       expect(normalisePaths(source)).toMatchSnapshot();
-  //       expect(map).toBe(undefined);
-  //       done();
-  //     };
-  //     loader.call(opts, '<template><style>* {background-image: url("foo.jpg");}</style></template>');
-  //   });
-  //
-  //   test('font url() are properly formatted', (done) => {
-  //     opts.async = () => (err, source, map) => {
-  //       expect(err).toBe(null);
-  //       expect(normalisePaths(source)).toMatchSnapshot();
-  //       expect(map).toBe(undefined);
-  //       done();
-  //     };
-  //     loader.call(opts, `<style>
-  //       @font-face {
-  //         font-family: 'MyWebFont';
-  //         src: url('webfont.eot'); /* IE9 Compat Modes */
-  //         src: url('webfont.eot?#iefix') format('embedded-opentype'), /* IE6-IE8 */
-  //             url('webfont.woff2') format('woff2'), /* Super Modern Browsers */
-  //             url('webfont.woff') format('woff'), /* Pretty Modern Browsers */
-  //             url('webfont.ttf')  format('truetype'), /* Safari, Android, iOS */
-  //             url('webfont.svg#svgFontName') format('svg'); /* Legacy iOS */
-  //       }
-  //     </style>`);
-  //   });
-  // });
+  describe('styles', () => {
+    test('have url() calls replaced with require statements', (done) => {
+      opts.async = () => (err, source, map) => {
+        expect(err).toBe(null);
+        expect(normalisePaths(source)).toMatchSnapshot();
+        expect(map).toBe(undefined);
+        done();
+      };
+      loader.call(opts, addTemplateToPolymerElement('<style>* {background-image: url("foo.jpg");}</style>'));
+    });
+
+    test('font url() are properly formatted', (done) => {
+      opts.async = () => (err, source, map) => {
+        expect(err).toBe(null);
+        expect(normalisePaths(source)).toMatchSnapshot();
+        expect(map).toBe(undefined);
+        done();
+      };
+      loader.call(opts, addTemplateToPolymerElement(`<style>
+        @font-face {
+          font-family: 'MyWebFont';
+          src: url('webfont.eot'); /* IE9 Compat Modes */
+          src: url('webfont.eot?#iefix') format('embedded-opentype'), /* IE6-IE8 */
+              url('webfont.woff2') format('woff2'), /* Super Modern Browsers */
+              url('webfont.woff') format('woff'), /* Pretty Modern Browsers */
+              url('webfont.ttf')  format('truetype'), /* Safari, Android, iOS */
+              url('webfont.svg#svgFontName') format('svg'); /* Legacy iOS */
+        }
+      </style>`));
+    });
+    test('multiple style tags are processed', (done) => {
+      opts.async = () => (err, source, map) => {
+        expect(err).toBe(null);
+        expect(normalisePaths(source)).toMatchSnapshot();
+        expect(map).toBe(undefined);
+        done();
+      };
+      loader.call(
+        opts,
+        addTemplateToPolymerElement(
+          `<style>* {background-image: url("foo.jpg");}</style>
+              <style>* {background-image: url("bar.jpg");}</style>`));
+    });
+    test('@import statements are processed', (done) => {
+      opts.async = () => (err, source, map) => {
+        expect(err).toBe(null);
+        expect(normalisePaths(source)).toMatchSnapshot();
+        expect(map).toBe(undefined);
+        done();
+      };
+      loader.call(
+        opts,
+        addTemplateToPolymerElement(
+          '<style>@import url("other.css"); * {background-image: url("foo.jpg");}</style>'));
+    });
+  });
 
   describe('full components', () => {
     test('multiple template methods', (done) => {
@@ -166,6 +181,7 @@ class MyElement extends PolymerElement {
     return html\`<style> 
         h1 {
           background-color: pink;
+          background-image: url('foo.jpg');
         }
       </style>\`;
   }

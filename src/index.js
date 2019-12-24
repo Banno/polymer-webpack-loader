@@ -3,9 +3,10 @@ const walk = require('acorn-walk');
 const htmlLoader = require('html-loader');
 const escodegen = require('escodegen');
 const loaderUtils = require('loader-utils');
+const postcss = require('postcss');
+const Tokenizer = require('css-selector-tokenizer');
 
 const parser = acorn.Parser;
-
 const htmlLoaderDefaultOptions = {
   minimize: true,
   cacheable: false,
@@ -17,10 +18,18 @@ const htmlLoaderDefaultOptions = {
 const polymerElementIndicatorExpr =
   /\/polymer\/polymer(-element)?\.js|(^|\s|[^\w])PolymerElement(^|\s|[^\w])|@customElement|@polymer|(^|\s|[^\w])customElements\s*\.\s*define\s*\(/;
 
+/**
+ * @param {string} value
+ * @return {string}
+ */
 function stringCleanup(value) {
   return value.replace(/`/g, '`').replace(/(^|[^\\])\\"/g, '$1"');
 }
 
+/**
+ * @param {string} content
+ * @return {!Array<!Node>}
+ */
 function findHtmlTaggedTemplateLiterals(content) {
   const tokens = parser.parse(content, {
     ecmaVersion: 2020,
@@ -55,6 +64,10 @@ function findHtmlTaggedTemplateLiterals(content) {
   return polymerTemplateExpressions;
 }
 
+/**
+ * @param {!Array<!Node>} polymerTemplateExpressions
+ * @return {{templates: !Array<string>, placeholders: Map<string, !Node>}}
+ */
 function addPlaceholdersForSubExpressions(polymerTemplateExpressions) {
   const placeholderMap = new Map();
   const polymerTemplateExpressionsWithPlaceholders = polymerTemplateExpressions.map((node) => {
@@ -81,6 +94,11 @@ function addPlaceholdersForSubExpressions(polymerTemplateExpressions) {
 }
 
 const templateCreationFunctionName = '__createTemplateFromString';
+
+/**
+ * @param {!Node} stringExpression
+ * @return {string}
+ */
 function convertStringConcatenationToTemplateLiteral(stringExpression) {
   let newContent;
   if (stringExpression.type === 'Literal') {
@@ -111,6 +129,11 @@ function convertStringConcatenationToTemplateLiteral(stringExpression) {
   return newContent;
 }
 
+/**
+ * @param {!Array<string>} templateStrings
+ * @param {Object} htmlLoaderOptions
+ * @return {!Array<string>}
+ */
 function minifyHtmlTaggedTemplateExpressions(templateStrings, htmlLoaderOptions) {
   const minifiedTemplateLiterals = templateStrings.map((tagValue) => {
     let minifiedSource = htmlLoader.call({
@@ -128,16 +151,17 @@ function minifyHtmlTaggedTemplateExpressions(templateStrings, htmlLoaderOptions)
       minifiedSource = convertStringConcatenationToTemplateLiteral(stringExpression);
     }
     return minifiedSource;
-    // minifiedSource = minifiedSource.replace(
-    //   /polymer-rename-placeholder-\d+-a/g,
-    //   match => `\${${escodegen.generate(placeholderMap.get(match))}}`).trim();
-    //
-    // newContent = newContent.substr(0, node.quasi.range[0] + 1) +
-    //   minifiedSource + newContent.substr(node.quasi.range[1] - 1);
   });
   return minifiedTemplateLiterals;
 }
 
+/**
+ * @param {string} originalContent
+ * @param {!Array<!Node>} templateNodes
+ * @param {!Array<string>} templateStrings
+ * @param {!Map<string, !Node>} placeholders
+ * @return {string}
+ */
 function replacePlaceholdersWithOriginalExpressions(originalContent, templateNodes, templateStrings, placeholders) {
   let newContent = originalContent;
   for (let i = templateNodes.length - 1; i >= 0; i--) {
@@ -154,8 +178,182 @@ function replacePlaceholdersWithOriginalExpressions(originalContent, templateNod
   return newContent;
 }
 
-// eslint-disable-next-line no-unused-vars
-module.exports = function entry(content, sourceMap) {
+const STYLE_URL_PREFIX = '__POLYMER_WEBPACK_LOADER_URL_';
+const STYLE_URL_EXPR = new RegExp(`${STYLE_URL_PREFIX}\\d+__`, 'g');
+const STYLE_URL_IMPORT_EXPR = new RegExp(`@import url\\((${STYLE_URL_PREFIX}\\d+__)\\);`, 'g');
+
+/**
+ * Ensure that a path not starting with ```/```, ```./```, ```~``` or ```../``` gets ```./``` prepended.
+ * e.g.
+ * ```
+ * foo.js
+ * becomes:
+ * ./foo.js
+ * ```
+ * @param {string} urlPath link href or script src
+ * @return {string} adjusted path
+ */
+function adjustPathIfNeeded(urlPath) {
+  if (/^~/.test(urlPath)) {
+    return urlPath.substr(1);
+  } else if (/^\.{0,2}\//.test(urlPath)) {
+    return urlPath;
+  }
+  return `./${urlPath}`;
+}
+
+/**
+ * postcss parser plugin to update url()s
+ * Url records are added to the parserOptions argument which
+ * is passed in.
+ *
+ * @param {Object} cssOptions
+ */
+function postcssPlugin(parserOptions) {
+  return (css) => {
+    function processNode(node) {
+      const item = node;
+      switch (item.type) {
+        case 'value':
+          item.nodes.forEach(processNode);
+          break;
+
+        case 'nested-item':
+          item.nodes.forEach(processNode);
+          break;
+
+        case 'url':
+          if (item.url.replace(/\s/g, '').length && !/^#/.test(item.url) &&
+              loaderUtils.isUrlRequest(item.url, parserOptions.root)) {
+            // Don't remove quotes around url when contain space
+            if (item.url.indexOf(' ') === -1) {
+              item.stringType = '';
+            }
+            delete item.innerSpacingBefore;
+            delete item.innerSpacingAfter;
+            const itemUrl = item.url;
+            const urlId = `${STYLE_URL_PREFIX}${parserOptions.getNextIndex()}__`;
+            parserOptions.urlMap.set(urlId, adjustPathIfNeeded(itemUrl));
+            item.url = urlId;
+          }
+          break;
+
+        default:
+          break;
+      }
+    }
+
+    css.walkDecls((decl) => {
+      const localDecl = decl;
+      const values = Tokenizer.parseValues(decl.value);
+      values.nodes.forEach((value) => {
+        value.nodes.forEach(processNode);
+      });
+      localDecl.value = Tokenizer.stringifyValues(values);
+    });
+
+    css.walkAtRules((rule) => {
+      if (rule.name !== 'import' && typeof rule.params !== 'string') {
+        return;
+      }
+      const localRule = rule;
+      const values = Tokenizer.parseValues(rule.params);
+      values.nodes.forEach((value) => {
+        value.nodes.forEach(processNode);
+      });
+      localRule.params = Tokenizer.stringifyValues(values);
+    });
+  };
+}
+
+const postcssParserPlugin = postcss.plugin('polymer-webpack-loader-parser', postcssPlugin);
+
+/**
+ * @param {!Array<string>} templateStrings
+ * @param {string} currentFilePath
+ * @return {!Promise<!Array<string>>}
+ */
+async function updateUrlsInStyles(templateStrings, currentFilePath) {
+  const stylePlaceholders = new Map();
+  const replacedTemplates = [];
+  let currentStyleId = 0;
+  function getNextIndex() {
+    const nextId = currentStyleId;
+    currentStyleId += 1;
+    return nextId;
+  }
+
+  for (let i = 0; i < templateStrings.length; i++) {
+    let processedStyleContent = templateStrings[i];
+    for (let styleIndex = processedStyleContent.indexOf('<style');
+      styleIndex >= 0;
+      styleIndex = processedStyleContent.indexOf('<style', styleIndex + '<style'.length)) {
+      const styleTagContentIndex = processedStyleContent.indexOf('>', styleIndex) + 1;
+      if (styleTagContentIndex <= 0) {
+        continue; // eslint-disable-line no-continue
+      }
+      const styleTagContentEndIndex = processedStyleContent.indexOf('</style', styleIndex);
+      if (styleTagContentEndIndex < 0) {
+        continue; // eslint-disable-line no-continue
+      }
+      const styleContent = processedStyleContent.substring(styleTagContentIndex, styleTagContentEndIndex);
+
+      // No need to run through postcss unless there are url() statements
+      if (styleContent.indexOf('url(') < 0) {
+        continue; // eslint-disable-line no-continue
+      }
+
+      currentStyleId += 1;
+      const parserCssOptions = {
+        root: styleContent,
+        urlMap: stylePlaceholders,
+        getNextIndex,
+      };
+      const postcssPipeline = postcss([postcssParserPlugin(parserCssOptions)]);
+      const options = {
+        // we need a prefix to avoid path rewriting of PostCSS
+        from: `/polymer-webpack-loader!${currentFilePath}`,
+        to: currentFilePath,
+        map: null,
+      };
+      // eslint-disable-next-line no-await-in-loop
+      let processedStyle = (await postcssPipeline.process(styleContent, options)).css;
+      processedStyle = processedStyle.replace(STYLE_URL_IMPORT_EXPR, (match, g1) => {
+        if (!stylePlaceholders.has(g1)) {
+          return match;
+        }
+        const rewrittenUrl = stylePlaceholders.get(g1);
+        return `@import url('\${${templateCreationFunctionName}(require(${JSON.stringify(rewrittenUrl)}))}');`;
+      });
+      processedStyle = processedStyle.replace(STYLE_URL_EXPR, (match) => {
+        if (!stylePlaceholders.has(match)) {
+          return match;
+        }
+        let rewrittenUrl = stylePlaceholders.get(match);
+        let queryIndex = rewrittenUrl.indexOf('?#');
+        if (queryIndex < 0) {
+          queryIndex = rewrittenUrl.indexOf('#');
+        }
+        let urlSuffix = '';
+        // queryIndex === 0 is caught by isUrlRequest
+        if (queryIndex > 0) {
+          // in cases like url('webfont.eot?#iefix')
+          urlSuffix = rewrittenUrl.substr(queryIndex);
+          rewrittenUrl = rewrittenUrl.substr(0, queryIndex);
+        }
+        return `'\${${templateCreationFunctionName}(require(${JSON.stringify(rewrittenUrl)}))}${urlSuffix}'`;
+      });
+
+      processedStyleContent = processedStyleContent.substr(0, styleTagContentIndex) +
+          processedStyle +
+          processedStyleContent.substr(styleTagContentEndIndex);
+    }
+    replacedTemplates.push(processedStyleContent);
+  }
+  return replacedTemplates;
+}
+
+module.exports = async function entry(content, sourceMap) {
   const callback = this.async();
   // See if the contents contain any indicator that this might be a Polymer Element. If not, avoid parsing.
   if (!polymerElementIndicatorExpr.test(content)) {
@@ -176,19 +374,20 @@ module.exports = function entry(content, sourceMap) {
   }
 
   const htmlMinifiedTemplates = minifyHtmlTaggedTemplateExpressions(simpleTemplateStrings, htmlLoaderOptions);
-
-  // TODO add CSS processing
+  const styleProcessedTemplates = await updateUrlsInStyles(htmlMinifiedTemplates, this.resourcePath);
 
   let newContent = replacePlaceholdersWithOriginalExpressions(
     content,
     polymerTemplateExpressions,
-    htmlMinifiedTemplates,
+    styleProcessedTemplates,
     subExpressionPlaceholders);
 
-  if (htmlMinifiedTemplates.find(templateExpression => templateExpression.indexOf(templateCreationFunctionName) >= 0)) {
-    newContent += `\nfunction __createTemplateFromString(a) {
+  const addTemplateCreationFunction =
+    styleProcessedTemplates.find(templateExpression => templateExpression.indexOf(templateCreationFunctionName) >= 0);
+  if (addTemplateCreationFunction) {
+    newContent += `\nfunction ${templateCreationFunctionName}(a) {
   const template = /** @type {!HTMLTemplateElement} */(document.createElement('template'));
-  template.innerHTML = a;
+  template.innerText = a;
   return template;
 }\n`;
   }
