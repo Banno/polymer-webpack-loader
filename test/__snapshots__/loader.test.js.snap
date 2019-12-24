@@ -33,7 +33,7 @@ window.customElements.define(MyElement.is, MyElement);
 
 function __createTemplateFromString(a) {
   const template = /** @type {!HTMLTemplateElement} */(document.createElement('template'));
-  template.innerText = a;
+  template.content.appendChild(document.createTextNode(a));
   return template;
 }
 "
@@ -61,7 +61,7 @@ customElements.define(FooElement.is, FooElement);
 
 function __createTemplateFromString(a) {
   const template = /** @type {!HTMLTemplateElement} */(document.createElement('template'));
-  template.innerText = a;
+  template.content.appendChild(document.createTextNode(a));
   return template;
 }
 "
@@ -78,7 +78,7 @@ customElements.define(FooElement.is, FooElement);
 
 function __createTemplateFromString(a) {
   const template = /** @type {!HTMLTemplateElement} */(document.createElement('template'));
-  template.innerText = a;
+  template.content.appendChild(document.createTextNode(a));
   return template;
 }
 "
@@ -108,7 +108,7 @@ customElements.define(FooElement.is, FooElement);
 
 function __createTemplateFromString(a) {
   const template = /** @type {!HTMLTemplateElement} */(document.createElement('template'));
-  template.innerText = a;
+  template.content.appendChild(document.createTextNode(a));
   return template;
 }
 "
@@ -125,7 +125,7 @@ customElements.define(FooElement.is, FooElement);
 
 function __createTemplateFromString(a) {
   const template = /** @type {!HTMLTemplateElement} */(document.createElement('template'));
-  template.innerText = a;
+  template.content.appendChild(document.createTextNode(a));
   return template;
 }
 "
@@ -165,7 +165,7 @@ customElements.define(FooElement.is, FooElement);
 
 function __createTemplateFromString(a) {
   const template = /** @type {!HTMLTemplateElement} */(document.createElement('template'));
-  template.innerText = a;
+  template.content.appendChild(document.createTextNode(a));
   return template;
 }
 "
