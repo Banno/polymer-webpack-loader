@@ -95,6 +95,17 @@ describe('loader', () => {
   });
 
   describe('styles', () => {
+    test('simple styles are left alone', (done) => {
+      opts.async = () => (err, source, map) => {
+        expect(err).toBe(null);
+        expect(normalisePaths(source)).toMatchSnapshot();
+        expect(map).toBe(undefined);
+        done();
+      };
+      loader.call(
+        opts,
+        addTemplateToPolymerElement('<style>* {background-color: transparent;}</style>'));
+    });
     test('have url() calls replaced with require statements', (done) => {
       opts.async = () => (err, source, map) => {
         expect(err).toBe(null);
@@ -117,10 +128,13 @@ describe('loader', () => {
           font-family: 'MyWebFont';
           src: url('webfont.eot'); /* IE9 Compat Modes */
           src: url('webfont.eot?#iefix') format('embedded-opentype'), /* IE6-IE8 */
-              url('webfont.woff2') format('woff2'), /* Super Modern Browsers */
-              url('webfont.woff') format('woff'), /* Pretty Modern Browsers */
+              url('~webfont.woff2') format('woff2'), /* Super Modern Browsers */
+              url('./webfont.woff') format('woff'), /* Pretty Modern Browsers */
               url('webfont.ttf')  format('truetype'), /* Safari, Android, iOS */
               url('webfont.svg#svgFontName') format('svg'); /* Legacy iOS */
+        }
+        @media print {
+          * {background-color: transparent;}
         }
       </style>`));
     });
@@ -136,6 +150,28 @@ describe('loader', () => {
         addTemplateToPolymerElement(
           `<style>* {background-image: url("foo.jpg");}</style>
               <style>* {background-image: url("bar.jpg");}</style>`));
+    });
+    test('missing end tag is skipped', (done) => {
+      opts.async = () => (err, source, map) => {
+        expect(err).toBe(null);
+        expect(normalisePaths(source)).toMatchSnapshot();
+        expect(map).toBe(undefined);
+        done();
+      };
+      loader.call(
+        opts,
+        addTemplateToPolymerElement('<style>* {background-image: url("foo.jpg");}'));
+    });
+    test('malformed begin tag is skipped', (done) => {
+      opts.async = () => (err, source, map) => {
+        expect(err).toBe(null);
+        expect(normalisePaths(source)).toMatchSnapshot();
+        expect(map).toBe(undefined);
+        done();
+      };
+      loader.call(
+        opts,
+        addTemplateToPolymerElement('<style * {background-image: url("foo.jpg");}'));
     });
     test('@import statements are processed', (done) => {
       opts.async = () => (err, source, map) => {

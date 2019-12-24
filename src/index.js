@@ -253,7 +253,7 @@ function postcssPlugin(parserOptions) {
     });
 
     css.walkAtRules((rule) => {
-      if (rule.name !== 'import' && typeof rule.params !== 'string') {
+      if (rule.name !== 'import' || typeof rule.params !== 'string') {
         return;
       }
       const localRule = rule;

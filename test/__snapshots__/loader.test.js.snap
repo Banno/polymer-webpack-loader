@@ -94,10 +94,13 @@ class FooElement extends PolymerElement {
           font-family: 'MyWebFont';
           src: url('\${__createTemplateFromString(require(\\"./webfont.eot\\"))}'); /* IE9 Compat Modes */
           src: url('\${__createTemplateFromString(require(\\"./webfont.eot\\"))}?#iefix') format('embedded-opentype'), 
-              url('\${__createTemplateFromString(require(\\"./webfont.woff2\\"))}') format('woff2'), 
+              url('\${__createTemplateFromString(require(\\"webfont.woff2\\"))}') format('woff2'), 
               url('\${__createTemplateFromString(require(\\"./webfont.woff\\"))}') format('woff'), 
               url('\${__createTemplateFromString(require(\\"./webfont.ttf\\"))}')  format('truetype'), 
               url('\${__createTemplateFromString(require(\\"./webfont.svg\\"))}#svgFontName') format('svg'); /* Legacy iOS */
+        }
+        @media print {
+          * {background-color: transparent;}
         }
       </style>\`; }
 }
@@ -128,6 +131,28 @@ function __createTemplateFromString(a) {
 "
 `;
 
+exports[`loader styles malformed begin tag is skipped 1`] = `
+"import {PolymerElement, html} from \\"@polymer/polymer/polymer-element.js\\";
+
+class FooElement extends PolymerElement {
+  static get is() { return \\"foo-element\\"; }
+  static get template() { return html\`<style * {background-image: url(\\"foo.jpg\\");}\`; }
+}
+customElements.define(FooElement.is, FooElement);
+"
+`;
+
+exports[`loader styles missing end tag is skipped 1`] = `
+"import {PolymerElement, html} from \\"@polymer/polymer/polymer-element.js\\";
+
+class FooElement extends PolymerElement {
+  static get is() { return \\"foo-element\\"; }
+  static get template() { return html\`<style>* {background-image: url(\\"foo.jpg\\");}\`; }
+}
+customElements.define(FooElement.is, FooElement);
+"
+`;
+
 exports[`loader styles multiple style tags are processed 1`] = `
 "import {PolymerElement, html} from \\"@polymer/polymer/polymer-element.js\\";
 
@@ -143,5 +168,16 @@ function __createTemplateFromString(a) {
   template.innerText = a;
   return template;
 }
+"
+`;
+
+exports[`loader styles simple styles are left alone 1`] = `
+"import {PolymerElement, html} from \\"@polymer/polymer/polymer-element.js\\";
+
+class FooElement extends PolymerElement {
+  static get is() { return \\"foo-element\\"; }
+  static get template() { return html\`<style>* {background-color: transparent;}</style>\`; }
+}
+customElements.define(FooElement.is, FooElement);
 "
 `;
