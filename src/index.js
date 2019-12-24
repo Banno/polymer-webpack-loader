@@ -55,12 +55,9 @@ function findHtmlTaggedTemplateLiterals(content) {
   return polymerTemplateExpressions;
 }
 
-function processTaggedTemplateExpressions(content, polymerTemplateExpressions, htmlLoaderOptions) {
-  let newContent = content;
-  let addTemplateCreationFunction = false;
-  for (let i = polymerTemplateExpressions.length - 1; i >= 0; i--) {
-    const node = polymerTemplateExpressions[i];
-    const placeholderMap = new Map();
+function addPlaceholdersForSubExpressions(polymerTemplateExpressions) {
+  const placeholderMap = new Map();
+  const polymerTemplateExpressionsWithPlaceholders = polymerTemplateExpressions.map((node) => {
     const taggedLiteralParts = [];
     for (let j = node.quasi.quasis.length - 1; j >= 0; j--) {
       const quasi = node.quasi.quasis[j];
@@ -74,8 +71,48 @@ function processTaggedTemplateExpressions(content, polymerTemplateExpressions, h
       }
       taggedLiteralParts.unshift(quasi.value.raw.replace(/`/g, '\\`'));
     }
-    const tagValue = taggedLiteralParts.join('');
+    return taggedLiteralParts.join('');
+  });
 
+  return {
+    templates: polymerTemplateExpressionsWithPlaceholders,
+    placeholders: placeholderMap,
+  };
+}
+
+const templateCreationFunctionName = '__createTemplateFromString';
+function convertStringConcatenationToTemplateLiteral(stringExpression) {
+  let newContent;
+  if (stringExpression.type === 'Literal') {
+    newContent = stringExpression.value;
+  } else if (stringExpression.type === 'BinaryExpression') {
+    let expression = stringExpression;
+    const expressionParts = [];
+    while (expression) {
+      if (expression.right.type === 'Literal') {
+        expressionParts.unshift(stringCleanup(expression.right.value));
+      } else {
+        expressionParts.unshift(`\${${templateCreationFunctionName}(${escodegen.generate(expression.right)})}`);
+      }
+      if (expression.left.type === 'BinaryExpression') {
+        expression = expression.left;
+      } else if (expression.left.type === 'Literal') {
+        expressionParts.unshift(stringCleanup(expression.left.value));
+        expression = null;
+      } else {
+        expressionParts.unshift(`\${${templateCreationFunctionName}(${escodegen.generate(expression.left)})}`);
+        expression = null;
+      }
+    }
+    newContent = expressionParts.join('');
+  } else {
+    throw new Error(`Unrecognized expression from HTML Loader: ${stringExpression.type}`);
+  }
+  return newContent;
+}
+
+function minifyHtmlTaggedTemplateExpressions(templateStrings, htmlLoaderOptions) {
+  const minifiedTemplateLiterals = templateStrings.map((tagValue) => {
     let minifiedSource = htmlLoader.call({
       options: {
         htmlLoader: htmlLoaderOptions,
@@ -88,48 +125,31 @@ function processTaggedTemplateExpressions(content, polymerTemplateExpressions, h
         locations: true,
         ranges: true,
       }).body[0].expression.right;
-
-      if (stringExpression.type === 'Literal') {
-        minifiedSource = stringExpression.value;
-      } else if (stringExpression.type === 'BinaryExpression') {
-        let expression = stringExpression;
-        const expressionParts = [];
-        while (expression) {
-          if (expression.right.type === 'Literal') {
-            expressionParts.unshift(stringCleanup(expression.right.value));
-          } else {
-            addTemplateCreationFunction = true;
-            expressionParts.unshift(`\${__createTemplateFromString(${escodegen.generate(expression.right)})}`);
-          }
-          if (expression.left.type === 'BinaryExpression') {
-            expression = expression.left;
-          } else if (expression.left.type === 'Literal') {
-            expressionParts.unshift(stringCleanup(expression.left.value));
-            expression = null;
-          } else {
-            addTemplateCreationFunction = true;
-            expressionParts.unshift(`\${__createTemplateFromString(${escodegen.generate(expression.left)})}`);
-            expression = null;
-          }
-        }
-        minifiedSource = expressionParts.join('');
-      } else {
-        throw new Error(`Unrecognized expression from HTML Loader: ${stringExpression.type}`);
-      }
+      minifiedSource = convertStringConcatenationToTemplateLiteral(stringExpression);
     }
-    minifiedSource = minifiedSource.replace(
+    return minifiedSource;
+    // minifiedSource = minifiedSource.replace(
+    //   /polymer-rename-placeholder-\d+-a/g,
+    //   match => `\${${escodegen.generate(placeholderMap.get(match))}}`).trim();
+    //
+    // newContent = newContent.substr(0, node.quasi.range[0] + 1) +
+    //   minifiedSource + newContent.substr(node.quasi.range[1] - 1);
+  });
+  return minifiedTemplateLiterals;
+}
+
+function replacePlaceholdersWithOriginalExpressions(originalContent, templateNodes, templateStrings, placeholders) {
+  let newContent = originalContent;
+  for (let i = templateNodes.length - 1; i >= 0; i--) {
+    const node = templateNodes[i];
+    const templateString = templateStrings[i];
+    const templateWithOriginalExpression = templateString.replace(
       /polymer-rename-placeholder-\d+-a/g,
-      match => `\${${escodegen.generate(placeholderMap.get(match))}}`).trim();
+      match => `\${${escodegen.generate(placeholders.get(match))}}`).trim();
 
     newContent = newContent.substr(0, node.quasi.range[0] + 1) +
-      minifiedSource + newContent.substr(node.quasi.range[1] - 1);
-  }
-  if (addTemplateCreationFunction) {
-    newContent += `\nfunction __createTemplateFromString(a) {
-  const template = /** @type {!HTMLTemplateElement} */(document.createElement('template'));
-  template.innerHTML = a;
-  return template;
-}\n`;
+      templateWithOriginalExpression +
+      newContent.substr(node.quasi.range[1] - 1);
   }
   return newContent;
 }
@@ -144,6 +164,8 @@ module.exports = function entry(content, sourceMap) {
   }
 
   const polymerTemplateExpressions = findHtmlTaggedTemplateLiterals(content);
+  const { placeholders: subExpressionPlaceholders, templates: simpleTemplateStrings } =
+      addPlaceholdersForSubExpressions(polymerTemplateExpressions);
   const options = loaderUtils.getOptions(this) || {};
   const htmlLoaderOptions = Object.assign({}, htmlLoaderDefaultOptions, options.htmlLoader || {});
   if (htmlLoaderOptions.exportAsDefault) {
@@ -153,6 +175,22 @@ module.exports = function entry(content, sourceMap) {
     delete htmlLoaderOptions.exportAsEs6Default;
   }
 
-  const newContent = processTaggedTemplateExpressions(content, polymerTemplateExpressions, htmlLoaderOptions);
+  const htmlMinifiedTemplates = minifyHtmlTaggedTemplateExpressions(simpleTemplateStrings, htmlLoaderOptions);
+
+  // TODO add CSS processing
+
+  let newContent = replacePlaceholdersWithOriginalExpressions(
+    content,
+    polymerTemplateExpressions,
+    htmlMinifiedTemplates,
+    subExpressionPlaceholders);
+
+  if (htmlMinifiedTemplates.find(templateExpression => templateExpression.indexOf(templateCreationFunctionName) >= 0)) {
+    newContent += `\nfunction __createTemplateFromString(a) {
+  const template = /** @type {!HTMLTemplateElement} */(document.createElement('template'));
+  template.innerHTML = a;
+  return template;
+}\n`;
+  }
   callback(null, newContent);
 };
