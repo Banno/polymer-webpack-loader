@@ -387,7 +387,7 @@ module.exports = async function entry(content, sourceMap) {
   if (addTemplateCreationFunction) {
     newContent += `\nfunction ${templateCreationFunctionName}(a) {
   const template = /** @type {!HTMLTemplateElement} */(document.createElement('template'));
-  template.innerText = a;
+  template.content.appendChild(document.createTextNode(a));
   return template;
 }\n`;
   }
