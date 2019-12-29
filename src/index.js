@@ -285,8 +285,8 @@ async function replacePlaceholdersWithOriginalExpressions(originalContent, templ
     if (sourceMap) {
       const currentMapping = sourceMappings[sourceMappingsCurrentIndex];
       let generatedColumnOffset = 0;
-      if (currentMapping && currentMapping.line === originalLine) {
-        generatedColumnOffset = newContentLines[newContentLines.length - 1].length - 1 - currentMapping.generatedColumn;
+      if (currentMapping && currentMapping.generatedLine === originalLine) {
+        generatedColumnOffset = newContentLines[newContentLines.length - 1].length - currentMapping.generatedColumn;
       }
       sourceMappingsCurrentIndex = addMappingsUntil(
         sourceMapGenerator,
@@ -353,8 +353,8 @@ async function replacePlaceholdersWithOriginalExpressions(originalContent, templ
   if (sourceMap && sourceMappingsCurrentIndex < sourceMappings.length) {
     const currentMapping = sourceMappings[sourceMappingsCurrentIndex];
     let generatedColumnOffset = 0;
-    if (currentMapping && currentMapping.line === originalLine) {
-      generatedColumnOffset = newContentLines[newContentLines.length - 1].length - 1 - currentMapping.generatedColumn;
+    if (currentMapping && currentMapping.generatedLine === originalLine) {
+      generatedColumnOffset = newContentLines[newContentLines.length - 1].length - currentMapping.generatedColumn;
     }
     addMappingsUntil(
       sourceMapGenerator,
