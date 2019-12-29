@@ -1,25 +1,26 @@
 /* eslint no-undefined: "off", no-useless-escape: "off" */
 
-// const sourceMap = require('source-map');
+const sourceMap = require('source-map');
 const loader = require('../src');
 
 const normalisePaths = result => result.replace('src\\\\', 'src/');
 
-// function verifySourceMap(generatedSource, map) {
-//   const consumer = sourceMap.SourceMapConsumer(map);
-//   consumer.eachMapping((mapping) => {
-//     if (!mapping.name) {
-//       return;
-//     }
-//     const originalSourceByLine = consumer.sourceContentFor(mapping.source).split('\n');
-//     const generatedSourceByLine = generatedSource.split('\n');
-//
-//     expect(generatedSourceByLine[mapping.generatedLine - 1].substr(mapping.generatedColumn, mapping.name.length))
-//       .toBe(mapping.name);
-//     expect(originalSourceByLine[mapping.originalLine - 1].substr(mapping.originalColumn, mapping.name.length))
-//       .toBe(mapping.name);
-//   });
-// }
+async function verifySourceMap(generatedSource, map) {
+  const consumer = await new sourceMap.SourceMapConsumer(map);
+  consumer.eachMapping((mapping) => {
+    if (!mapping.name) {
+      return;
+    }
+    const originalSourceByLine = consumer.sourceContentFor(mapping.source).split('\n');
+    const generatedSourceByLine = generatedSource.split('\n');
+
+    expect(generatedSourceByLine[mapping.generatedLine - 1].substr(mapping.generatedColumn, mapping.name.length))
+      .toBe(mapping.name);
+    expect(originalSourceByLine[mapping.originalLine - 1].substr(mapping.originalColumn, mapping.name.length))
+      .toBe(mapping.name);
+  });
+  consumer.destroy();
+}
 
 function addTemplateToPolymerElement(templateValue) {
   return `import {PolymerElement, html} from "@polymer/polymer/polymer-element.js";
@@ -45,6 +46,7 @@ describe('loader', () => {
           exportAsEs6Default: true,
         },
       },
+      sourceMap: false,
     };
   });
 
@@ -188,13 +190,39 @@ describe('loader', () => {
   });
 
   describe('full components', () => {
-    test('multiple template methods', (done) => {
+    test('basic element', (done) => {
       opts.query.htmlLoader.minimize = true;
-      opts.async = () => (err, source /* , map */) => {
+      opts.sourceMap = true;
+      opts.async = () => async (err, source, map) => {
         expect(err).toBe(null);
         expect(normalisePaths(source)).toMatchSnapshot();
-        // expect(map).not.toBe(undefined);
-        // verifySourceMap(source, map);
+        expect(map).not.toBe(undefined);
+        await verifySourceMap(source, map);
+        done();
+      };
+      loader.call(opts, `
+import format from 'date-fns/format';
+import {PolymerElement, html} from '@polymer/polymer/polymer-element.js';  
+
+class MyElement extends PolymerElement {
+  static get is() { return 'my-element'; }
+  static get template() {
+    return html\`<h1>Hello, World!</h1>\`;
+  }
+}
+
+window.customElements.define(MyElement.is, MyElement);
+`);
+    });
+
+    test('multiple template methods', (done) => {
+      opts.query.htmlLoader.minimize = true;
+      opts.sourceMap = true;
+      opts.async = () => async (err, source, map) => {
+        expect(err).toBe(null);
+        expect(normalisePaths(source)).toMatchSnapshot();
+        expect(map).not.toBe(undefined);
+        await verifySourceMap(source, map);
         done();
       };
       loader.call(opts, `
@@ -227,6 +255,62 @@ class MyElement extends PolymerElement {
       <h1>
         Hello, World! It's [[today]].
       </h1>\`;
+  }
+}
+
+window.customElements.define(MyElement.is, MyElement);
+`);
+    });
+
+    test('html tagged references on same line', (done) => {
+      opts.query.htmlLoader.minimize = true;
+      opts.sourceMap = true;
+      opts.async = () => async (err, source, map) => {
+        expect(err).toBe(null);
+        expect(normalisePaths(source)).toMatchSnapshot();
+        expect(map).not.toBe(undefined);
+        await verifySourceMap(source, map);
+        done();
+      };
+      loader.call(opts, `
+import format from 'date-fns/format';
+import {PolymerElement, html} from '@polymer/polymer/polymer-element.js';  
+
+class MyElement extends PolymerElement {
+  static get is() { return 'my-element'; }
+  static get styles() {
+    return html\`<style>* {background-color: pink;}</style>\`;
+  }
+  static get template() {
+    return html\`<h1>Hello, World!</h1>\` && html\`\${MyElement.styles}\`;
+  }
+}
+
+window.customElements.define(MyElement.is, MyElement);
+`);
+    });
+
+    test('source maps account for escaped backtick', (done) => {
+      opts.query.htmlLoader.minimize = true;
+      opts.sourceMap = true;
+      opts.async = () => async (err, source, map) => {
+        expect(err).toBe(null);
+        expect(normalisePaths(source)).toMatchSnapshot();
+        expect(map).not.toBe(undefined);
+        await verifySourceMap(source, map);
+        done();
+      };
+      loader.call(opts, `
+import format from 'date-fns/format';
+import {PolymerElement, html} from '@polymer/polymer/polymer-element.js';  
+
+class MyElement extends PolymerElement {
+  static get is() { return 'my-element'; }
+  static get styles() {
+    return html\`<style>* {background-color: pink;}</style>\`;
+  }
+  static get template() {
+    return html\`foo\\\`s\${MyElement.styles}\`;
   }
 }
 

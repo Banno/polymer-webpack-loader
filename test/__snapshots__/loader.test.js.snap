@@ -4,6 +4,41 @@ exports[`loader can process basic input 1`] = `"class Foo {}"`;
 
 exports[`loader can process without options 1`] = `"class Foo {}"`;
 
+exports[`loader full components basic element 1`] = `
+"
+import format from 'date-fns/format';
+import {PolymerElement, html} from '@polymer/polymer/polymer-element.js';  
+
+class MyElement extends PolymerElement {
+  static get is() { return 'my-element'; }
+  static get template() {
+    return html\`<h1>Hello, World!</h1>\`;
+  }
+}
+
+window.customElements.define(MyElement.is, MyElement);
+"
+`;
+
+exports[`loader full components html tagged references on same line 1`] = `
+"
+import format from 'date-fns/format';
+import {PolymerElement, html} from '@polymer/polymer/polymer-element.js';  
+
+class MyElement extends PolymerElement {
+  static get is() { return 'my-element'; }
+  static get styles() {
+    return html\`<style>*{background-color:pink}</style>\`;
+  }
+  static get template() {
+    return html\`<h1>Hello, World!</h1>\` && html\`\${MyElement.styles}\`;
+  }
+}
+
+window.customElements.define(MyElement.is, MyElement);
+"
+`;
+
 exports[`loader full components multiple template methods 1`] = `
 "
 import format from 'date-fns/format';
@@ -36,6 +71,25 @@ function __createTemplateFromString(a) {
   template.content.appendChild(document.createTextNode(a));
   return template;
 }
+"
+`;
+
+exports[`loader full components source maps account for escaped backtick 1`] = `
+"
+import format from 'date-fns/format';
+import {PolymerElement, html} from '@polymer/polymer/polymer-element.js';  
+
+class MyElement extends PolymerElement {
+  static get is() { return 'my-element'; }
+  static get styles() {
+    return html\`<style>*{background-color:pink}</style>\`;
+  }
+  static get template() {
+    return html\`foo\\\\\\\\\\\\\`s\${MyElement.styles}\`;
+  }
+}
+
+window.customElements.define(MyElement.is, MyElement);
 "
 `;
 

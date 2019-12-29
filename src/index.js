@@ -5,6 +5,7 @@ const escodegen = require('escodegen');
 const loaderUtils = require('loader-utils');
 const postcss = require('postcss');
 const Tokenizer = require('css-selector-tokenizer');
+const sourceMaps = require('source-map');
 
 const parser = acorn.Parser;
 const htmlLoaderDefaultOptions = {
@@ -28,7 +29,7 @@ function stringCleanup(value) {
 
 /**
  * @param {string} content
- * @return {!Array<!Node>}
+ * @return {{ast:!Node, !templateExpressions:!Array<!Node>}}
  */
 function findHtmlTaggedTemplateLiterals(content) {
   const tokens = parser.parse(content, {
@@ -61,7 +62,10 @@ function findHtmlTaggedTemplateLiterals(content) {
       }
     },
   });
-  return polymerTemplateExpressions;
+  return {
+    ast: tokens,
+    templateExpressions: polymerTemplateExpressions,
+  };
 }
 
 /**
@@ -156,26 +160,223 @@ function minifyHtmlTaggedTemplateExpressions(templateStrings, htmlLoaderOptions)
 }
 
 /**
+ * @param {string} content
+ * @param {!Node} ast
+ * @return {!SourceMap}
+ */
+function createIdentitySourceMap(content, ast, filePath) {
+  const sourceMapGenerator = new sourceMaps.SourceMapGenerator();
+  const addedTokens = new Set();
+  const addToken = (token) => {
+    if (!token.loc || addedTokens.has(token)) {
+      return;
+    }
+    const mapping = {
+      original: {
+        line: token.loc.start.line,
+        column: token.loc.start.column,
+      },
+      generated: {
+        line: token.loc.start.line,
+        column: token.loc.start.column,
+      },
+      source: filePath,
+    };
+    if (token.type === 'Identifier' && token.name && !addedTokens.has(token)) {
+      addedTokens.add(token);
+      mapping.name = token.name;
+    }
+    sourceMapGenerator.addMapping(mapping);
+    if (token.type !== 'Identifier') {
+      Object.keys(token).forEach((tokenKey) => {
+        if (token[tokenKey] &&
+            token[tokenKey].type === 'Identifier' &&
+            token[tokenKey].name &&
+            !addedTokens.has(token[tokenKey])) {
+          addToken(token[tokenKey]);
+        }
+      });
+    }
+  };
+  walk.full(ast, (token) => {
+    addToken(token);
+  });
+  sourceMapGenerator.setSourceContent(filePath, content);
+  return sourceMapGenerator.toJSON();
+}
+
+/**
+ * @param {sourceMaps.SourceMapGenerator} sourceMapGenerator
+ * @param {!Array} mappings
+ * @param {number} startIndex
+ * @param {{line: number, column: number}} untilLoc
+ * @param {{line: number, column: number, columnLine: number}} offsets
+ * @return {number}
+ */
+function addMappingsUntil(sourceMapGenerator, mappings, startIndex, untilLoc, offsets) {
+  let i;
+  for (i = startIndex;
+    i < mappings.length &&
+      (mappings[i].generatedLine < untilLoc.line ||
+        (mappings[i].generatedLine === untilLoc.line && mappings[i].generatedColumn < untilLoc.column));
+    i++) {
+    const mapping = {
+      source: mappings[i].source,
+      generated: {
+        line: mappings[i].generatedLine + offsets.line,
+        column: (mappings[i].generatedLine === offsets.columnLine ? offsets.column : 0) + mappings[i].generatedColumn,
+      },
+    };
+    if (mappings[i].originalLine !== undefined) {
+      mapping.original = {
+        line: mappings[i].originalLine,
+        column: mappings[i].originalColumn,
+      };
+    }
+    if (mappings[i].name) {
+      mapping.name = mappings[i].name;
+    }
+    sourceMapGenerator.addMapping(mapping);
+  }
+  return i;
+}
+
+/**
  * @param {string} originalContent
  * @param {!Array<!Node>} templateNodes
  * @param {!Array<string>} templateStrings
  * @param {!Map<string, !Node>} placeholders
- * @return {string}
+ * @param {SourceMap=} sourceMap
+ * @return {!Promise<string>}
  */
-function replacePlaceholdersWithOriginalExpressions(originalContent, templateNodes, templateStrings, placeholders) {
-  let newContent = originalContent;
-  for (let i = templateNodes.length - 1; i >= 0; i--) {
-    const node = templateNodes[i];
-    const templateString = templateStrings[i];
-    const templateWithOriginalExpression = templateString.replace(
-      /polymer-rename-placeholder-\d+-a/g,
-      match => `\${${escodegen.generate(placeholders.get(match))}}`).trim();
-
-    newContent = newContent.substr(0, node.quasi.range[0] + 1) +
-      templateWithOriginalExpression +
-      newContent.substr(node.quasi.range[1] - 1);
+async function replacePlaceholdersWithOriginalExpressions(originalContent, templateNodes, templateStrings, placeholders, sourceMap) {
+  let sourceMapConsumer;
+  let sourceMapGenerator;
+  const sourceMappings = [];
+  if (sourceMap) {
+    sourceMapConsumer = await new sourceMaps.SourceMapConsumer(sourceMap);
+    sourceMapGenerator = new sourceMaps.SourceMapGenerator();
+    sourceMapConsumer.eachMapping((mapping) => {
+      sourceMappings.push(mapping);
+      if (sourceMapConsumer.sourceContentFor(mapping.source, true)) {
+        sourceMapGenerator.setSourceContent(mapping.source, sourceMapConsumer.sourceContentFor(mapping.source));
+      }
+    });
   }
-  return newContent;
+  const originalContentLines = originalContent.split('\n');
+  const newContentLines = [''];
+
+  let originalLineColumnIndex = 0;
+  let originalLine = 1;
+  let sourceMappingsCurrentIndex = 0;
+
+  function addNewContentLines(value) {
+    const lines = value.split('\n');
+    if (lines.length > 0) {
+      newContentLines[newContentLines.length - 1] += lines[0];
+    }
+    if (lines.length > 1) {
+      newContentLines.push(...lines.slice(1));
+    }
+  }
+
+  for (let i = 0; i < templateNodes.length; i++) {
+    const node = templateNodes[i];
+    if (sourceMap) {
+      const currentMapping = sourceMappings[sourceMappingsCurrentIndex];
+      let generatedColumnOffset = 0;
+      if (currentMapping && currentMapping.line === originalLine) {
+        generatedColumnOffset = newContentLines[newContentLines.length - 1].length - 1 - currentMapping.generatedColumn;
+      }
+      sourceMappingsCurrentIndex = addMappingsUntil(
+        sourceMapGenerator,
+        sourceMappings,
+        sourceMappingsCurrentIndex,
+        node.loc.start,
+        {
+          line: newContentLines.length - originalLine,
+          column: generatedColumnOffset,
+          columnLine: originalLine,
+        });
+    }
+    newContentLines[newContentLines.length - 1] += originalContentLines[originalLine - 1].substr(originalLineColumnIndex);
+    newContentLines.push(...originalContentLines.slice(originalLine, node.loc.start.line));
+    const currentLine = newContentLines.pop().substr(0, node.quasi.loc.start.column);
+    newContentLines.push(currentLine);
+    originalLine = node.quasi.loc.start.line;
+
+    const templateString = templateStrings[i].trim();
+    const placeholderExpression = /polymer-rename-placeholder-\d+-a/;
+    let match;
+    let templateStringWorkingContents = `\`${templateString}\``;
+    // eslint-disable-next-line no-cond-assign
+    while ((match = placeholderExpression.exec(templateStringWorkingContents)) !== null) {
+      const originalExpression = placeholders.get(match[0]);
+      addNewContentLines(`${templateStringWorkingContents.substr(0, match.index)}\${`);
+      const expressionLineStartLoc = {
+        line: newContentLines.length,
+        column: newContentLines[newContentLines.length - 1].length,
+      };
+      addNewContentLines(`${originalContent.substring(originalExpression.range[0], originalExpression.range[1])}}`);
+      templateStringWorkingContents = templateStringWorkingContents.substr(match.index + match[0].length);
+      if (sourceMap) {
+        sourceMappingsCurrentIndex = sourceMappings.findIndex(mapping =>
+          mapping.generatedLine === originalExpression.loc.start.line &&
+            mapping.generatedColumn === originalExpression.loc.start.column);
+        sourceMappingsCurrentIndex = addMappingsUntil(
+          sourceMapGenerator,
+          sourceMappings,
+          sourceMappingsCurrentIndex,
+          {
+            line: originalExpression.loc.end.line,
+            column: originalExpression.loc.end.column,
+          },
+          {
+            line: expressionLineStartLoc.line - originalExpression.loc.start.line,
+            column: expressionLineStartLoc.column - originalExpression.loc.start.column,
+            columnLine: originalExpression.loc.start.line,
+          });
+        const nextMapping = sourceMappings[sourceMappingsCurrentIndex];
+        originalLine = nextMapping.originalLine; // eslint-disable-line prefer-destructuring
+      }
+    }
+    addNewContentLines(templateStringWorkingContents);
+    originalLine = node.quasi.loc.end.line;
+    originalLineColumnIndex = node.quasi.loc.end.column;
+    if (sourceMap) {
+      sourceMappingsCurrentIndex = sourceMappings.findIndex(mapping =>
+        mapping.generatedLine > node.quasi.loc.end.line ||
+        (mapping.generatedLine === node.quasi.loc.end.line && mapping.generatedColumn > node.quasi.end.generatedColumn));
+    }
+  }
+
+  if (sourceMap && sourceMappingsCurrentIndex < sourceMappings.length) {
+    const currentMapping = sourceMappings[sourceMappingsCurrentIndex];
+    let generatedColumnOffset = 0;
+    if (currentMapping && currentMapping.line === originalLine) {
+      generatedColumnOffset = newContentLines[newContentLines.length - 1].length - 1 - currentMapping.generatedColumn;
+    }
+    addMappingsUntil(
+      sourceMapGenerator,
+      sourceMappings,
+      sourceMappingsCurrentIndex,
+      {
+        line: Infinity,
+        column: Infinity,
+      },
+      {
+        line: newContentLines.length - originalLine,
+        column: generatedColumnOffset,
+        columnLine: originalLine,
+      });
+    sourceMapConsumer.destroy();
+  }
+  newContentLines[newContentLines.length - 1] += originalContentLines[originalLine - 1].substr(originalLineColumnIndex);
+  newContentLines.push(...originalContentLines.slice(originalLine));
+  return {
+    source: newContentLines.join('\n'),
+    sourceMap: sourceMap ? sourceMapGenerator.toJSON() : undefined,
+  };
 }
 
 const STYLE_URL_PREFIX = '__POLYMER_WEBPACK_LOADER_URL_';
@@ -290,17 +491,17 @@ async function updateUrlsInStyles(templateStrings, currentFilePath) {
       styleIndex = processedStyleContent.indexOf('<style', styleIndex + '<style'.length)) {
       const styleTagContentIndex = processedStyleContent.indexOf('>', styleIndex) + 1;
       if (styleTagContentIndex <= 0) {
-        continue; // eslint-disable-line no-continue
+        continue;
       }
       const styleTagContentEndIndex = processedStyleContent.indexOf('</style', styleIndex);
       if (styleTagContentEndIndex < 0) {
-        continue; // eslint-disable-line no-continue
+        continue;
       }
       const styleContent = processedStyleContent.substring(styleTagContentIndex, styleTagContentEndIndex);
 
       // No need to run through postcss unless there are url() statements
       if (styleContent.indexOf('url(') < 0) {
-        continue; // eslint-disable-line no-continue
+        continue;
       }
 
       currentStyleId += 1;
@@ -361,7 +562,10 @@ module.exports = async function entry(content, sourceMap) {
     return;
   }
 
-  const polymerTemplateExpressions = findHtmlTaggedTemplateLiterals(content);
+  const { ast, templateExpressions: polymerTemplateExpressions } = findHtmlTaggedTemplateLiterals(content);
+  if (!sourceMap && this.sourceMap) {
+    sourceMap = createIdentitySourceMap(content, ast, this.resourcePath); // eslint-disable-line no-param-reassign
+  }
   const { placeholders: subExpressionPlaceholders, templates: simpleTemplateStrings } =
       addPlaceholdersForSubExpressions(polymerTemplateExpressions);
   const options = loaderUtils.getOptions(this) || {};
@@ -373,14 +577,17 @@ module.exports = async function entry(content, sourceMap) {
     delete htmlLoaderOptions.exportAsEs6Default;
   }
 
-  const htmlMinifiedTemplates = minifyHtmlTaggedTemplateExpressions(simpleTemplateStrings, htmlLoaderOptions);
+  const escapedTemplateStrings = simpleTemplateStrings.map(templateString => templateString.replace(/`/g, '\\`'));
+  const htmlMinifiedTemplates = minifyHtmlTaggedTemplateExpressions(escapedTemplateStrings, htmlLoaderOptions);
   const styleProcessedTemplates = await updateUrlsInStyles(htmlMinifiedTemplates, this.resourcePath);
 
-  let newContent = replacePlaceholdersWithOriginalExpressions(
+  // eslint-disable-next-line prefer-const
+  let { source: newContent, sourceMap: newSourceMap } = await replacePlaceholdersWithOriginalExpressions(
     content,
     polymerTemplateExpressions,
     styleProcessedTemplates,
-    subExpressionPlaceholders);
+    subExpressionPlaceholders,
+    this.sourceMap ? sourceMap : undefined);
 
   const addTemplateCreationFunction =
     styleProcessedTemplates.find(templateExpression => templateExpression.indexOf(templateCreationFunctionName) >= 0);
@@ -391,5 +598,5 @@ module.exports = async function entry(content, sourceMap) {
   return template;
 }\n`;
   }
-  callback(null, newContent);
+  callback(null, newContent, newSourceMap);
 };
