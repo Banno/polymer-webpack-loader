@@ -152,6 +152,14 @@ RegisterHtmlTemplate.register(\\"<dom-module id=\\\\\\"x-foo\\\\\\"><div></div><
 "
 `;
 
+exports[`loader domModule transforms dom-modules with assetpath 1`] = `
+"
+const RegisterHtmlTemplate = require('polymer-webpack-loader/register-html-template');
+
+RegisterHtmlTemplate.register(\\"<dom-module assetpath=bower_components/x-foo/  id=\\\\\\"x-foo\\\\\\"><div></div></dom-module>\\");
+"
+`;
+
 exports[`loader domModule transforms multiple dom-modules 1`] = `
 "
 const RegisterHtmlTemplate = require('polymer-webpack-loader/register-html-template');
