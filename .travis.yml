@@ -29,7 +29,6 @@ jobs:
       node_js: 12
       env: WEBPACK_VERSION=canary JOB_PART=test
 before_install:
-  - rm yarn.lock
   - 'if [[ `npm -v` != 5* ]]; then npm i -g npm@latest; fi'
   - nvm --version
   - node --version
