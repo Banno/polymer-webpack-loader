@@ -1,0 +1,10 @@
+{
+  "extends": "webpack",
+  "env": {
+    "browser": true
+  },
+  "rules": {
+    "import/no-extraneous-dependencies": ["error", {"devDependencies": true}],
+    "import/extensions": "off"
+  }
+}
