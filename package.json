@@ -62,6 +62,7 @@
   },
   "files": [
     "dist",
+    "src",
     "register-html-template.js"
   ],
   "engines": {
