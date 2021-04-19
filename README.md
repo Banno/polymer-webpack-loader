@@ -1,6 +1,5 @@
 # polymer-webpack-loader
 [![npm version](https://badge.fury.io/js/polymer-webpack-loader.svg)](https://badge.fury.io/js/polymer-webpack-loader)
-[![build status](https://travis-ci.org/webpack-contrib/polymer-webpack-loader.svg?branch=master)](https://travis-ci.org/webpack-contrib/polymer-webpack-loader)
 
 > [Polymer](https://www.polymer-project.org/) component loader for [webpack](https://webpack.js.org/).
 
