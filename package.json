@@ -47,7 +47,7 @@
     "jest": "^24.9.0",
     "lint-staged": "^4.0.1",
     "pre-commit": "^1.2.2",
-    "standard-version": "^7.0.1",
+    "standard-version": "^8.0.1",
     "webpack": "4.x"
   },
   "files": [
