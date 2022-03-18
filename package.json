@@ -47,7 +47,6 @@
     "@babel/plugin-proposal-object-rest-spread": "^7.7.7",
     "@babel/polyfill": "^7.7.0",
     "@babel/preset-env": "^7.7.7",
-    "@webpack-contrib/defaults": "^6.3.0",
     "babel-jest": "^24.9.0",
     "cross-env": "^5.0.1",
     "del-cli": "^1.1.0",
@@ -58,17 +57,18 @@
     "lint-staged": "^4.0.1",
     "pre-commit": "^1.2.2",
     "standard-version": "^7.0.1",
-    "webpack": "4.x"
+    "webpack": "5.x"
   },
   "files": [
     "dist",
+    "src",
     "register-html-template.js"
   ],
   "engines": {
     "node": ">= 4.3 < 5.0.0 || >= 5.10"
   },
   "peerDependencies": {
-    "webpack": "^2.0.0 || ^3.0.0 || ^4.0.0"
+    "webpack": "^5.0.0 || ^3.0.0 || ^4.0.0"
   },
   "pre-commit": "lint-staged",
   "lint-staged": {
