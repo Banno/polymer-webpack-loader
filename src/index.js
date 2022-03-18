@@ -1,536 +1,181 @@
-const acorn = require('acorn');
-const walk = require('acorn-walk');
-const htmlLoader = require('html-loader');
-const escodegen = require('escodegen');
-const loaderUtils = require('loader-utils');
-const postcss = require('postcss');
-const Tokenizer = require('css-selector-tokenizer');
-const sourceMaps = require('source-map');
+import url from 'url';
+import {
+  append,
+  constructors,
+  getAttribute,
+  getTextContent,
+  insertBefore,
+  predicates,
+  query,
+  queryAll,
+  remove,
+  removeFakeRootElements,
+  setTextContent,
+} from 'dom5';
+import loaderUtils from 'loader-utils';
+import parse5 from 'parse5';
+import espree from 'espree';
+import sourceMap from 'source-map';
+import htmlLoader from 'html-loader';
+import Tokenizer from 'css-selector-tokenizer';
+import postcss from 'postcss';
 
-const parser = acorn.Parser;
+/** @enum {number} */
+const RuntimeRegistrationType = {
+  DOM_MODULE: 0,
+  BODY: 1,
+};
+
 const htmlLoaderDefaultOptions = {
   minimize: true,
   cacheable: false,
   minifyCSS: {
     inline: ['none'],
   },
-  removeAttributeQuotes: false,
 };
-const polymerElementIndicatorExpr =
-  /\/polymer\/polymer(-element)?\.js|(^|\s|[^\w])PolymerElement(^|\s|[^\w])|@customElement|@polymer|(^|\s|[^\w])customElements\s*\.\s*define\s*\(/;
 
-/**
- * @param {string} value
- * @return {string}
- */
-function stringCleanup(value) {
-  return value.replace(/`/g, '`').replace(/(^|[^\\])\\"/g, '$1"');
-}
-
-/**
- * @param {string} content
- * @return {{ast:!Node, !templateExpressions:!Array<!Node>}}
- */
-function findHtmlTaggedTemplateLiterals(content) {
-  const tokens = parser.parse(content, {
-    ecmaVersion: 2020,
-    sourceType: 'module',
-    locations: true,
-    ranges: true,
-  });
-
-  let htmlTagSymbol;
-  const polymerTemplateExpressions = [];
-  walk.simple(tokens, {
-    ImportDeclaration(node) {
-      let specifiers = [];
-      if (/@polymer\/polymer\/polymer-(element|legacy)\.js$/.test(node.source.value) ||
-        /@polymer\/polymer\/lib\/utils\/html-tag\.js$/.test(node.source.value)) {
-        specifiers = node.specifiers; // eslint-disable-line prefer-destructuring
-      } else {
-        return;
-      }
-      const htmlSpecifier = specifiers.find(
-        specifier => specifier.imported.type === 'Identifier' && specifier.imported.name === 'html');
-      if (htmlSpecifier) {
-        htmlTagSymbol = htmlSpecifier.local.name;
-      }
-    },
-    TaggedTemplateExpression(node) {
-      if (htmlTagSymbol && node.tag.type === 'Identifier' && node.tag.name === htmlTagSymbol) {
-        polymerTemplateExpressions.push(node);
-      }
-    },
-  });
-  return {
-    ast: tokens,
-    templateExpressions: polymerTemplateExpressions,
-  };
-}
-
-/**
- * @param {!Array<!Node>} polymerTemplateExpressions
- * @return {{templates: !Array<string>, placeholders: Map<string, !Node>}}
- */
-function addPlaceholdersForSubExpressions(polymerTemplateExpressions) {
-  const placeholderMap = new Map();
-  const polymerTemplateExpressionsWithPlaceholders = polymerTemplateExpressions.map((node) => {
-    const taggedLiteralParts = [];
-    for (let j = node.quasi.quasis.length - 1; j >= 0; j--) {
-      const quasi = node.quasi.quasis[j];
-      if (node.quasi.expressions.length > j) {
-        const placeholder = `polymer-rename-placeholder-${placeholderMap.size + 1}-a`;
-        placeholderMap.set(
-          placeholder,
-          node.quasi.expressions[j],
-        );
-        taggedLiteralParts.unshift(placeholder);
-      }
-      taggedLiteralParts.unshift(quasi.value.raw.replace(/`/g, '\\`'));
-    }
-    return taggedLiteralParts.join('');
-  });
-
-  return {
-    templates: polymerTemplateExpressionsWithPlaceholders,
-    placeholders: placeholderMap,
-  };
-}
-
-const templateCreationFunctionName = '__createTemplateFromString';
-
-/**
- * @param {!Node} stringExpression
- * @return {string}
- */
-function convertStringConcatenationToTemplateLiteral(stringExpression) {
-  let newContent;
-  if (stringExpression.type === 'Literal') {
-    newContent = stringExpression.value;
-  } else if (stringExpression.type === 'BinaryExpression') {
-    let expression = stringExpression;
-    const expressionParts = [];
-    while (expression) {
-      if (expression.right.type === 'Literal') {
-        expressionParts.unshift(stringCleanup(expression.right.value));
-      } else {
-        expressionParts.unshift(`\${${templateCreationFunctionName}(${escodegen.generate(expression.right)})}`);
-      }
-      if (expression.left.type === 'BinaryExpression') {
-        expression = expression.left;
-      } else if (expression.left.type === 'Literal') {
-        expressionParts.unshift(stringCleanup(expression.left.value));
-        expression = null;
-      } else {
-        expressionParts.unshift(`\${${templateCreationFunctionName}(${escodegen.generate(expression.left)})}`);
-        expression = null;
-      }
-    }
-    newContent = expressionParts.join('');
-  } else {
-    throw new Error(`Unrecognized expression from HTML Loader: ${stringExpression.type}`);
-  }
-  return newContent;
-}
-
-/**
- * @param {!Array<string>} templateStrings
- * @param {Object} htmlLoaderOptions
- * @return {!Array<string>}
- */
-function minifyHtmlTaggedTemplateExpressions(templateStrings, htmlLoaderOptions) {
-  const minifiedTemplateLiterals = templateStrings.map((tagValue) => {
-    let minifiedSource = htmlLoader.call({
-      options: {
-        htmlLoader: htmlLoaderOptions,
-      },
-    }, tagValue);
-    if (minifiedSource) {
-      const stringExpression = parser.parse(minifiedSource, {
-        ecmaVersion: 2020,
-        sourceType: 'module',
-        locations: true,
-        ranges: true,
-      }).body[0].expression.right;
-      minifiedSource = convertStringConcatenationToTemplateLiteral(stringExpression);
-    }
-    return minifiedSource;
-  });
-  return minifiedTemplateLiterals;
-}
-
-/**
- * @param {string} content
- * @param {!Node} ast
- * @return {!SourceMap}
- */
-function createIdentitySourceMap(content, ast, filePath) {
-  const sourceMapGenerator = new sourceMaps.SourceMapGenerator();
-  const addedTokens = new Set();
-  const addToken = (token) => {
-    if (!token.loc || addedTokens.has(token)) {
-      return;
-    }
-    const mapping = {
-      original: {
-        line: token.loc.start.line,
-        column: token.loc.start.column,
-      },
-      generated: {
-        line: token.loc.start.line,
-        column: token.loc.start.column,
-      },
-      source: filePath,
-    };
-    if (token.type === 'Identifier' && token.name && !addedTokens.has(token)) {
-      addedTokens.add(token);
-      mapping.name = token.name;
-    }
-    sourceMapGenerator.addMapping(mapping);
-    if (token.type !== 'Identifier') {
-      Object.keys(token).forEach((tokenKey) => {
-        if (token[tokenKey] &&
-            token[tokenKey].type === 'Identifier' &&
-            token[tokenKey].name &&
-            !addedTokens.has(token[tokenKey])) {
-          addToken(token[tokenKey]);
-        }
-      });
-    }
-  };
-  walk.full(ast, (token) => {
-    addToken(token);
-  });
-  sourceMapGenerator.setSourceContent(filePath, content);
-  return sourceMapGenerator.toJSON();
-}
-
-/**
- * @param {sourceMaps.SourceMapGenerator} sourceMapGenerator
- * @param {!Array} mappings
- * @param {number} startIndex
- * @param {{line: number, column: number}} untilLoc
- * @param {{line: number, column: number, columnLine: number}} offsets
- * @return {number}
- */
-function addMappingsUntil(sourceMapGenerator, mappings, startIndex, untilLoc, offsets) {
-  let i;
-  for (i = startIndex;
-    i < mappings.length &&
-      (mappings[i].generatedLine < untilLoc.line ||
-        (mappings[i].generatedLine === untilLoc.line && mappings[i].generatedColumn < untilLoc.column));
-    i++) {
-    const mapping = {
-      source: mappings[i].source,
-      generated: {
-        line: mappings[i].generatedLine + offsets.line,
-        column: (mappings[i].generatedLine === offsets.columnLine ? offsets.column : 0) + mappings[i].generatedColumn,
-      },
-    };
-    if (mappings[i].originalLine !== undefined) {
-      mapping.original = {
-        line: mappings[i].originalLine,
-        column: mappings[i].originalColumn,
-      };
-    }
-    if (mappings[i].name) {
-      mapping.name = mappings[i].name;
-    }
-    sourceMapGenerator.addMapping(mapping);
-  }
-  return i;
-}
-
-/**
- * @param {string} originalContent
- * @param {!Array<!Node>} templateNodes
- * @param {!Array<string>} templateStrings
- * @param {!Map<string, !Node>} placeholders
- * @param {SourceMap=} sourceMap
- * @return {!Promise<string>}
- */
-async function replacePlaceholdersWithOriginalExpressions(originalContent, templateNodes, templateStrings, placeholders, sourceMap) {
-  let sourceMapConsumer;
-  let sourceMapGenerator;
-  const sourceMappings = [];
-  if (sourceMap) {
-    sourceMapConsumer = await new sourceMaps.SourceMapConsumer(sourceMap);
-    sourceMapGenerator = new sourceMaps.SourceMapGenerator();
-    sourceMapConsumer.eachMapping((mapping) => {
-      sourceMappings.push(mapping);
-      if (sourceMapConsumer.sourceContentFor(mapping.source, true)) {
-        sourceMapGenerator.setSourceContent(mapping.source, sourceMapConsumer.sourceContentFor(mapping.source));
-      }
-    });
-  }
-  const originalContentLines = originalContent.split('\n');
-  const newContentLines = [''];
-
-  let originalLineColumnIndex = 0;
-  let originalLine = 1;
-  let sourceMappingsCurrentIndex = 0;
-
-  function addNewContentLines(value) {
-    const lines = value.split('\n');
-    if (lines.length > 0) {
-      newContentLines[newContentLines.length - 1] += lines[0];
-    }
-    if (lines.length > 1) {
-      newContentLines.push(...lines.slice(1));
-    }
-  }
-
-  for (let i = 0; i < templateNodes.length; i++) {
-    const node = templateNodes[i];
-    if (sourceMap) {
-      const currentMapping = sourceMappings[sourceMappingsCurrentIndex];
-      let generatedColumnOffset = 0;
-      if (currentMapping && currentMapping.generatedLine === originalLine) {
-        generatedColumnOffset = newContentLines[newContentLines.length - 1].length - currentMapping.generatedColumn;
-      }
-      sourceMappingsCurrentIndex = addMappingsUntil(
-        sourceMapGenerator,
-        sourceMappings,
-        sourceMappingsCurrentIndex,
-        node.loc.start,
-        {
-          line: newContentLines.length - originalLine,
-          column: generatedColumnOffset,
-          columnLine: originalLine,
-        });
-    }
-    newContentLines[newContentLines.length - 1] += originalContentLines[originalLine - 1].substr(originalLineColumnIndex);
-    newContentLines.push(...originalContentLines.slice(originalLine, node.loc.start.line));
-    const currentLine = newContentLines.pop().substr(0, node.quasi.loc.start.column);
-    newContentLines.push(currentLine);
-    originalLine = node.quasi.loc.start.line;
-
-    const templateString = templateStrings[i].trim();
-    const placeholderExpression = /polymer-rename-placeholder-\d+-a/;
-    let match;
-    let templateStringWorkingContents = `\`${templateString}\``;
-    // eslint-disable-next-line no-cond-assign
-    while ((match = placeholderExpression.exec(templateStringWorkingContents)) !== null) {
-      const originalExpression = placeholders.get(match[0]);
-      addNewContentLines(`${templateStringWorkingContents.substr(0, match.index)}\${`);
-      const expressionLineStartLoc = {
-        line: newContentLines.length,
-        column: newContentLines[newContentLines.length - 1].length,
-      };
-      addNewContentLines(`${originalContent.substring(originalExpression.range[0], originalExpression.range[1])}}`);
-      templateStringWorkingContents = templateStringWorkingContents.substr(match.index + match[0].length);
-      if (sourceMap) {
-        sourceMappingsCurrentIndex = sourceMappings.findIndex(mapping =>
-          mapping.generatedLine === originalExpression.loc.start.line &&
-            mapping.generatedColumn === originalExpression.loc.start.column);
-        sourceMappingsCurrentIndex = addMappingsUntil(
-          sourceMapGenerator,
-          sourceMappings,
-          sourceMappingsCurrentIndex,
-          {
-            line: originalExpression.loc.end.line,
-            column: originalExpression.loc.end.column,
-          },
-          {
-            line: expressionLineStartLoc.line - originalExpression.loc.start.line,
-            column: expressionLineStartLoc.column - originalExpression.loc.start.column,
-            columnLine: originalExpression.loc.start.line,
-          });
-        const nextMapping = sourceMappings[sourceMappingsCurrentIndex];
-        originalLine = nextMapping.originalLine; // eslint-disable-line prefer-destructuring
-      }
-    }
-    addNewContentLines(templateStringWorkingContents);
-    originalLine = node.quasi.loc.end.line;
-    originalLineColumnIndex = node.quasi.loc.end.column;
-    if (sourceMap) {
-      sourceMappingsCurrentIndex = sourceMappings.findIndex(mapping =>
-        mapping.generatedLine > node.quasi.loc.end.line ||
-        (mapping.generatedLine === node.quasi.loc.end.line && mapping.generatedColumn > node.quasi.end.generatedColumn));
-    }
-  }
-
-  if (sourceMap && sourceMappingsCurrentIndex < sourceMappings.length) {
-    const currentMapping = sourceMappings[sourceMappingsCurrentIndex];
-    let generatedColumnOffset = 0;
-    if (currentMapping && currentMapping.generatedLine === originalLine) {
-      generatedColumnOffset = newContentLines[newContentLines.length - 1].length - currentMapping.generatedColumn;
-    }
-    addMappingsUntil(
-      sourceMapGenerator,
-      sourceMappings,
-      sourceMappingsCurrentIndex,
-      {
-        line: Infinity,
-        column: Infinity,
-      },
-      {
-        line: newContentLines.length - originalLine,
-        column: generatedColumnOffset,
-        columnLine: originalLine,
-      });
-    sourceMapConsumer.destroy();
-  }
-  newContentLines[newContentLines.length - 1] += originalContentLines[originalLine - 1].substr(originalLineColumnIndex);
-  newContentLines.push(...originalContentLines.slice(originalLine));
-  return {
-    source: newContentLines.join('\n'),
-    sourceMap: sourceMap ? sourceMapGenerator.toJSON() : undefined,
-  };
-}
-
+const STYLE_ID_PREFIX = '__POLYMER_WEBPACK_LOADER_STYLE_';
+const STYLE_ID_EXPR = new RegExp(`/\\* (${STYLE_ID_PREFIX}\\d+__) \\*/`, 'g');
 const STYLE_URL_PREFIX = '__POLYMER_WEBPACK_LOADER_URL_';
 const STYLE_URL_EXPR = new RegExp(`${STYLE_URL_PREFIX}\\d+__`, 'g');
-const STYLE_URL_IMPORT_EXPR = new RegExp(`@import url\\((${STYLE_URL_PREFIX}\\d+__)\\);`, 'g');
+const STYLE_URL_IMPORT_EXPR = new RegExp(`<style>@import url\\((${STYLE_URL_PREFIX}\\d+__)\\);</style>`, 'g');
 
-/**
- * Ensure that a path not starting with ```/```, ```./```, ```~``` or ```../``` gets ```./``` prepended.
- * e.g.
- * ```
- * foo.js
- * becomes:
- * ./foo.js
- * ```
- * @param {string} urlPath link href or script src
- * @return {string} adjusted path
- */
-function adjustPathIfNeeded(urlPath) {
-  if (/^~/.test(urlPath)) {
-    return urlPath.substr(1);
-  } else if (/^\.{0,2}\//.test(urlPath)) {
-    return urlPath;
+/* eslint class-methods-use-this: ["error", { "exceptMethods": ["scripts"] }] */
+class ProcessHtml {
+  constructor(content, loader) {
+    this.content = content;
+    this.options = loaderUtils.getOptions(loader) || {};
+    this.currentFilePath = loader.resourcePath;
+    this.loader = loader;
+    this.currentStyleId_ = 0;
+    this.stylePlaceholders = new Map();
   }
-  return `./${urlPath}`;
-}
 
-/**
- * postcss parser plugin to update url()s
- * Url records are added to the parserOptions argument which
- * is passed in.
- *
- * @param {Object} cssOptions
- */
-function postcssPlugin(parserOptions) {
-  return (css) => {
-    function processNode(node) {
-      const item = node;
-      switch (item.type) {
-        case 'value':
-          item.nodes.forEach(processNode);
-          break;
+  /**
+   * Process `<link>` tags, `<dom-module>` elements, and any `<script>`'s.
+   * @return {Promise<{source: string, sourceMap: (string|undefined)}>} transform
+   *   content as a bundle for webpack.
+   */
+  process() {
+    const doc = parse5.parse(this.content, { locationInfo: true });
+    removeFakeRootElements(doc);
 
-        case 'nested-item':
-          item.nodes.forEach(processNode);
-          break;
-
-        case 'url':
-          if (item.url.replace(/\s/g, '').length && !/^#/.test(item.url) &&
-              loaderUtils.isUrlRequest(item.url, parserOptions.root)) {
-            // Don't remove quotes around url when contain space
-            if (item.url.indexOf(' ') === -1) {
-              item.stringType = '';
+    // Gather up all the element types to process
+    const linksArray = [];
+    const domModuleArray = [];
+    const scriptsArray = [];
+    const toBodyArray = [];
+    const externalStyleSheetsArray = [];
+    doc.childNodes.forEach((rootNode) => {
+      switch (rootNode.tagName) {
+        case 'dom-module':
+          rootNode.childNodes.forEach((domModuleChild) => {
+            if (domModuleChild.tagName === 'script') {
+              if (!ProcessHtml.isExternalPath(domModuleChild, 'src')) {
+                scriptsArray.push(domModuleChild);
+              }
+            } else if (domModuleChild.tagName === 'link' && this.options.processStyleLinks) {
+              const href = getAttribute(domModuleChild, 'href') || '';
+              const rel = getAttribute(domModuleChild, 'rel') || '';
+              const type = getAttribute(domModuleChild, 'type') || '';
+              if (href && (rel === 'stylesheet' || type === 'css') && !ProcessHtml.isExternalPath(domModuleChild, 'href')) {
+                externalStyleSheetsArray.push(domModuleChild);
+              }
+            } else if (domModuleChild.tagName === 'template' && this.options.processStyleLinks) {
+              domModuleChild.content.childNodes.forEach((templateChild) => {
+                if (templateChild.tagName) {
+                  if (templateChild.tagName === 'link') {
+                    const href = getAttribute(templateChild, 'href') || '';
+                    const rel = getAttribute(templateChild, 'rel') || '';
+                    const type = getAttribute(templateChild, 'type') || '';
+                    if (href && (rel === 'stylesheet' || type === 'css') && !ProcessHtml.isExternalPath(templateChild, 'href')) {
+                      externalStyleSheetsArray.push(templateChild);
+                    }
+                  }
+                }
+              });
             }
-            delete item.innerSpacingBefore;
-            delete item.innerSpacingAfter;
-            const itemUrl = item.url;
-            const urlId = `${STYLE_URL_PREFIX}${parserOptions.getNextIndex()}__`;
-            parserOptions.urlMap.set(urlId, adjustPathIfNeeded(itemUrl));
-            item.url = urlId;
+          });
+          domModuleArray.push(rootNode);
+          break;
+
+        case 'link':
+          if (ProcessHtml.isExternalPath(rootNode, 'href') || getAttribute(rootNode, 'rel') !== 'import') {
+            toBodyArray.push(rootNode);
+          } else {
+            linksArray.push(rootNode);
+          }
+          break;
+
+        case 'script':
+          if (!ProcessHtml.isExternalPath(rootNode, 'src')) {
+            scriptsArray.push(rootNode);
+          } else {
+            toBodyArray.push(rootNode);
           }
           break;
 
         default:
+          if (rootNode.tagName) {
+            toBodyArray.push(rootNode);
+          }
           break;
       }
+    });
+    scriptsArray.forEach((scriptNode) => {
+      remove(scriptNode);
+    });
+
+    // Find all the <style> tags to pass through postcss
+    const styleElements = ProcessHtml.inlineExternalStylesheets(externalStyleSheetsArray)
+      .concat(queryAll(doc, predicates.hasTagName('style')));
+    const templateElements = queryAll(doc, predicates.hasTagName('template'));
+    templateElements.forEach((templateElement) => {
+      styleElements.push(...queryAll(templateElement.content, predicates.hasTagName('style')));
+    });
+
+    // Postcss is asyncronous, so we have to wait for it to complete
+    const stylesProcessed = this.styles(styleElements);
+
+    let source = this.links(linksArray);
+    if (toBodyArray.length > 0 || domModuleArray.length > 0) {
+      source += '\nconst RegisterHtmlTemplate = require(\'polymer-webpack-loader/register-html-template\');\n';
     }
 
-    css.walkDecls((decl) => {
-      const localDecl = decl;
-      const values = Tokenizer.parseValues(decl.value);
-      values.nodes.forEach((value) => {
-        value.nodes.forEach(processNode);
+    // After styles are processed, replace the special comments with the rewritten
+    // style contents
+    return stylesProcessed.then(() => {
+      // Put the contents of the style tag processed by postcss back in the element
+      styleElements.forEach((style) => {
+        const originalTextContent = getTextContent(style);
+        if (originalTextContent.indexOf(STYLE_ID_PREFIX) >= 0) {
+          const replacedTextContent = originalTextContent.replace(STYLE_ID_EXPR, (match, g1) => {
+            if (!this.stylePlaceholders.has(g1)) {
+              return match;
+            }
+            return this.stylePlaceholders.get(g1);
+          });
+          setTextContent(style, replacedTextContent);
+        }
       });
-      localDecl.value = Tokenizer.stringifyValues(values);
-    });
 
-    css.walkAtRules((rule) => {
-      if (rule.name !== 'import' || typeof rule.params !== 'string') {
-        return;
-      }
-      const localRule = rule;
-      const values = Tokenizer.parseValues(rule.params);
-      values.nodes.forEach((value) => {
-        value.nodes.forEach(processNode);
-      });
-      localRule.params = Tokenizer.stringifyValues(values);
-    });
-  };
-}
-
-const postcssParserPlugin = postcss.plugin('polymer-webpack-loader-parser', postcssPlugin);
-
-/**
- * @param {!Array<string>} templateStrings
- * @param {string} currentFilePath
- * @return {!Promise<!Array<string>>}
- */
-async function updateUrlsInStyles(templateStrings, currentFilePath) {
-  const stylePlaceholders = new Map();
-  const replacedTemplates = [];
-  let currentStyleId = 0;
-  function getNextIndex() {
-    const nextId = currentStyleId;
-    currentStyleId += 1;
-    return nextId;
-  }
-
-  for (let i = 0; i < templateStrings.length; i++) {
-    let processedStyleContent = templateStrings[i];
-    for (let styleIndex = processedStyleContent.indexOf('<style');
-      styleIndex >= 0;
-      styleIndex = processedStyleContent.indexOf('<style', styleIndex + '<style'.length)) {
-      const styleTagContentIndex = processedStyleContent.indexOf('>', styleIndex) + 1;
-      if (styleTagContentIndex <= 0) {
-        continue;
-      }
-      const styleTagContentEndIndex = processedStyleContent.indexOf('</style', styleIndex);
-      if (styleTagContentEndIndex < 0) {
-        continue;
-      }
-      const styleContent = processedStyleContent.substring(styleTagContentIndex, styleTagContentEndIndex);
-
-      // No need to run through postcss unless there are url() statements
-      if (styleContent.indexOf('url(') < 0) {
-        continue;
-      }
-
-      currentStyleId += 1;
-      const parserCssOptions = {
-        root: styleContent,
-        urlMap: stylePlaceholders,
-        getNextIndex,
-      };
-      const postcssPipeline = postcss([postcssParserPlugin(parserCssOptions)]);
-      const options = {
-        // we need a prefix to avoid path rewriting of PostCSS
-        from: `/polymer-webpack-loader!${currentFilePath}`,
-        to: currentFilePath,
-        map: null,
-      };
-      // eslint-disable-next-line no-await-in-loop
-      let processedStyle = (await postcssPipeline.process(styleContent, options)).css;
-      processedStyle = processedStyle.replace(STYLE_URL_IMPORT_EXPR, (match, g1) => {
-        if (!stylePlaceholders.has(g1)) {
+      // External stylesheet import URLS were replaced with placeholders
+      // Replace the entire import with a  ```require``` calls
+      const replaceImportUrls = (match, g1) => {
+        if (!this.stylePlaceholders.has(g1)) {
           return match;
         }
-        const rewrittenUrl = stylePlaceholders.get(g1);
-        return `@import url('\${${templateCreationFunctionName}(require(${JSON.stringify(rewrittenUrl)}))}');`;
-      });
-      processedStyle = processedStyle.replace(STYLE_URL_EXPR, (match) => {
-        if (!stylePlaceholders.has(match)) {
+        const rewrittenUrl = this.stylePlaceholders.get(g1);
+        return `<style>" + require(${JSON.stringify(rewrittenUrl)}) + "</style>`;
+      };
+
+      // Style URLS were replaced with placeholders
+      // Replace the placeholders with ```require``` calls
+      const replaceStyleUrls = (match) => {
+        if (!this.stylePlaceholders.has(match)) {
           return match;
         }
-        let rewrittenUrl = stylePlaceholders.get(match);
+        let rewrittenUrl = this.stylePlaceholders.get(match);
         let queryIndex = rewrittenUrl.indexOf('?#');
         if (queryIndex < 0) {
           queryIndex = rewrittenUrl.indexOf('#');
@@ -542,61 +187,389 @@ async function updateUrlsInStyles(templateStrings, currentFilePath) {
           urlSuffix = rewrittenUrl.substr(queryIndex);
           rewrittenUrl = rewrittenUrl.substr(0, queryIndex);
         }
-        return `'\${${templateCreationFunctionName}(require(${JSON.stringify(rewrittenUrl)}))}${urlSuffix}'`;
+        return `'" + require(${JSON.stringify(rewrittenUrl)}) + "${urlSuffix}'`;
+      };
+
+      const htmlLoaderOptions = Object.assign({}, htmlLoaderDefaultOptions, this.options.htmlLoader || {});
+      if (htmlLoaderOptions.exportAsDefault) {
+        delete htmlLoaderOptions.exportAsDefault;
+      }
+      if (htmlLoaderOptions.exportAsEs6Default) {
+        delete htmlLoaderOptions.exportAsEs6Default;
+      }
+
+      const toBodyContent = toBodyArray.map(node =>
+        ProcessHtml.htmlLoader(node, htmlLoaderOptions)
+          .replace(STYLE_URL_IMPORT_EXPR, replaceImportUrls)
+          .replace(STYLE_URL_EXPR, replaceStyleUrls));
+
+      const domModuleContent = domModuleArray.map(node =>
+        ProcessHtml.htmlLoader(node, htmlLoaderOptions)
+          .replace(STYLE_URL_IMPORT_EXPR, replaceImportUrls)
+          .replace(STYLE_URL_EXPR, replaceStyleUrls));
+
+      source += ProcessHtml.buildRuntimeSource(toBodyContent, RuntimeRegistrationType.BODY);
+      source += ProcessHtml.buildRuntimeSource(domModuleContent, RuntimeRegistrationType.DOM_MODULE);
+      const scriptsSource = this.scripts(scriptsArray, source.split('\n').length);
+      source += scriptsSource.source;
+
+      return {
+        source,
+        sourceMap: scriptsSource.sourceMap,
+      };
+    });
+  }
+
+  /**
+   * Process an array of ```<link>``` to determine if each needs to be ```require``` statement or ignored.
+   *
+   * @param {Array<HTMLElement>} links
+   * @return {string}
+   */
+  links(links) {
+    let source = '';
+    // A function to test an href against options.ignoreLinks and options.ignoreLinksFromPartialMatches
+
+    // A function to test an href against options.ignorePathReWrite
+    let shouldRewrite;
+    if (this.options.ignorePathReWrite) {
+      shouldRewrite = () => true;
+    } else {
+      shouldRewrite = () => true;
+    }
+
+    links.forEach((linkNode) => {
+      const href = getAttribute(linkNode, 'href');
+      if (!href) {
+        return;
+      }
+
+      let path;
+      if (shouldRewrite(href)) {
+        path = ProcessHtml.adjustPathIfNeeded(href);
+      } else {
+        path = href;
+      }
+
+      source += `\nrequire('${path}');\n`;
+    });
+    return source;
+  }
+
+  /**
+   * Process an array of ```<script>``` to determine if each needs to be a ```require``` statement
+   * or have its contents written to the webpack module
+   *
+   * @param {Array<HTMLElement>} scripts
+   * @param {number} initialLineCount
+   * @return {{source: string, sourceMap: (Object|undefined)}}
+   */
+  scripts(scripts, initialLineCount) {
+    let sourceMapGenerator = null;
+    let lineCount = initialLineCount;
+    let source = '';
+    scripts.forEach((scriptNode) => {
+      const src = getAttribute(scriptNode, 'src') || '';
+      if (src) {
+        const path = ProcessHtml.adjustPathIfNeeded(src);
+        source += `\nrequire('${path}');\n`;
+        lineCount += 2;
+      } else {
+        const scriptContents = parse5.serialize(scriptNode);
+        sourceMapGenerator = sourceMapGenerator || new sourceMap.SourceMapGenerator();
+        const tokens = espree.tokenize(scriptContents, {
+          loc: true,
+          ecmaVersion: 2017,
+          sourceType: 'module',
+        });
+
+        // For script node content tokens, we need to offset the token position by the
+        // line number of the script tag itself. And for the first line, offset the start
+        // column to account for the <script> tag itself.
+        const currentScriptLineOffset = scriptNode.childNodes[0].__location.line - 1; // eslint-disable-line no-underscore-dangle
+        const firstLineCharOffset = scriptNode.childNodes[0].__location.col - 1; // eslint-disable-line no-underscore-dangle
+        tokens.forEach((token) => {
+          if (!token.loc) {
+            return;
+          }
+          const mapping = {
+            original: {
+              line: token.loc.start.line + currentScriptLineOffset,
+              column: token.loc.start.column + (token.loc.start.line === 1 ? firstLineCharOffset : 0),
+            },
+            generated: {
+              line: token.loc.start.line + lineCount,
+              column: token.loc.start.column,
+            },
+            source: this.currentFilePath,
+          };
+
+          if (token.type === 'Identifier') {
+            mapping.name = token.value;
+          }
+
+          sourceMapGenerator.addMapping(mapping);
+        });
+        source += `\n${scriptContents}\n`;
+        // eslint-disable-next-line no-underscore-dangle
+        lineCount += 2 + (scriptNode.__location.endTag.line - scriptNode.__location.startTag.line);
+      }
+    });
+    const retVal = {
+      source,
+    };
+    if (sourceMapGenerator) {
+      sourceMapGenerator.setSourceContent(this.currentFilePath, this.content);
+      retVal.sourceMap = sourceMapGenerator.toJSON();
+    }
+    return retVal;
+  }
+
+  /**
+   * Process an array of ```<style>``` elements
+   * If the content contains a ```url()``` statement, it is initially replaced
+   * with a unique identifier used to match back the postcss processed content.
+   *
+   * A custom postcss parser plugin replaces all url hrefs with a different
+   * unique placeholder. These placeholders are replaced after all processing and
+   * minification with ```require``` statements
+   *
+   * @param {Array<HTMLElement>} styles
+   * @return {Promise<Map<string, string>>} map of style identifiers to content
+   */
+  styles(styles) {
+    const processStylePromises = [];
+    styles.forEach((styleElement) => {
+      const styleContent = getTextContent(styleElement);
+
+      // No need to run through postcss unless there are url() statements
+      if (styleContent.indexOf('url(') < 0) {
+        return;
+      }
+
+      const id = `${STYLE_ID_PREFIX}${this.currentStyleId_}__`;
+      this.currentStyleId_ += 1;
+      const parserCssOptions = {
+        root: styleContent,
+        urlMap: this.stylePlaceholders,
+        getNextIndex: () => {
+          const nextId = this.currentStyleId_;
+          this.currentStyleId_ += 1;
+          return nextId;
+        },
+      };
+      const postcssPipeline = postcss([ProcessHtml.postcssParserPlugin(parserCssOptions)]);
+      const options = {
+        // we need a prefix to avoid path rewriting of PostCSS
+        from: `/polymer-webpack-loader!${this.currentFilePath}`,
+        to: this.currentFilePath,
+        map: null,
+      };
+      processStylePromises.push(postcssPipeline.process(styleContent, options)
+        .then((result) => {
+          this.stylePlaceholders.set(id, result.css);
+        }));
+
+      // replace all the style content with a unique id we can look it up later
+      setTextContent(styleElement, `/* ${id} */`);
+    });
+    return Promise.all(processStylePromises);
+  }
+
+  /**
+   * Process an array of ```<link rel="stylesheet">``` elements
+   * These elements will be replaced with ```<style>``` tags
+   * with ```@import url(href)```.
+   *
+   * The existing style processing will update the url to a placeholder
+   * which will be replaced with a ```require``` call.
+   *
+   * @param {Array<HTMLElement>} externalStyleSheets
+   * @return {Array<HTMLElement>} list of new style elements
+   */
+  static inlineExternalStylesheets(externalStyleSheets) {
+    const newStyleElements = [];
+    externalStyleSheets.forEach((linkElement) => {
+      const newStyleElement = constructors.element('style');
+      setTextContent(newStyleElement, `@import url(${JSON.stringify(getAttribute(linkElement, 'href'))});`);
+      let domModule = linkElement;
+      for (; domModule && domModule.tagName !== 'dom-module'; domModule = domModule.parentNode);
+
+      if (domModule) {
+        const template = query(domModule, predicates.hasTagName('template'));
+        if (!template) {
+          return;
+        }
+        if (template.content.childNodes.length > 0) {
+          insertBefore(template.content, template.content.childNodes[0], newStyleElement);
+        } else {
+          append(template.content, newStyleElement);
+        }
+      } else {
+        insertBefore(linkElement.parentNode, linkElement, newStyleElement);
+      }
+      remove(linkElement);
+      newStyleElements.push(newStyleElement);
+    });
+    return newStyleElements;
+  }
+
+  /**
+   * Generates required runtime source for the HtmlElements that need to be registered
+   * either in the body or as document fragments on the document.
+   * @param {Array<string>} content
+   * @param {RuntimeRegistrationType} type
+   * @return {string}
+   */
+  static buildRuntimeSource(content, type) {
+    const registrationMethod = type === RuntimeRegistrationType.BODY ? 'toBody' : 'register';
+    return content.map(source => `\nRegisterHtmlTemplate.${registrationMethod}(${source});\n`)
+      .join('');
+  }
+
+  /**
+   * Look to see if the HtmlElement has an external src/href as an attribute
+   * e.g.
+   * ```
+   * <script src="http://www.example.com/main.js">
+   * or
+   * <link href="http://www.example.com/main.html">
+   * returns: true
+   * ```
+   * @param {HTMLElement} node
+   * @param {string} attributeName src or href
+   * @return {boolean}
+   */
+  static isExternalPath(node, attributeName) {
+    const path = getAttribute(node, attributeName) || '';
+    const parseLink = url.parse(path, false, true);
+    return parseLink.protocol || parseLink.slashes;
+  }
+
+  /**
+   * Given an HTML Element, run the serialized content through the html-loader
+   * to add require statements for images.
+   *
+   * @param {HTMLElement} content
+   * @param {Object} options
+   * @return {string}
+   */
+  static htmlLoader(node, options) {
+    // need to create an object with a childNodes array so parse5.serialize
+    // will return the actual node and not just it's child nodes.
+    const parseObject = {
+      childNodes: [node],
+    };
+
+    // Run the html-loader for all HTML content so that images are
+    // added to the dependency graph
+    const serializedSource = parse5.serialize(parseObject);
+    let minifiedSource = htmlLoader.call({
+      options: {
+        htmlLoader: options,
+      },
+    }, serializedSource);
+    if (minifiedSource) {
+      minifiedSource = minifiedSource.substr('module.exports = '.length);
+      minifiedSource = minifiedSource.replace(/;\s*$/, '');
+    }
+    return minifiedSource;
+  }
+
+  /**
+   * postcss parser plugin to update url()s
+   * Url records are added to the parserOptions argument which
+   * is passed in.
+   *
+   * @param {Object} cssOptions
+   */
+  static postcssPlugin(parserOptions) {
+    return (css) => {
+      function processNode(node) {
+        const item = node;
+        switch (item.type) {
+          case 'value':
+            item.nodes.forEach(processNode);
+            break;
+
+          case 'nested-item':
+            item.nodes.forEach(processNode);
+            break;
+
+          case 'url':
+            if (item.url.replace(/\s/g, '').length && !/^#/.test(item.url) && loaderUtils.isUrlRequest(item.url, parserOptions.root)) {
+              // Don't remove quotes around url when contain space
+              if (item.url.indexOf(' ') === -1) {
+                item.stringType = '';
+              }
+              delete item.innerSpacingBefore;
+              delete item.innerSpacingAfter;
+              const itemUrl = item.url;
+              const urlId = `${STYLE_URL_PREFIX}${parserOptions.getNextIndex()}__`;
+              parserOptions.urlMap.set(urlId, ProcessHtml.adjustPathIfNeeded(itemUrl));
+              item.url = urlId;
+            }
+            break;
+
+          default:
+            break;
+        }
+      }
+
+      css.walkDecls((decl) => {
+        const localDecl = decl;
+        const values = Tokenizer.parseValues(decl.value);
+        values.nodes.forEach((value) => {
+          value.nodes.forEach(processNode);
+        });
+        localDecl.value = Tokenizer.stringifyValues(values);
       });
 
-      processedStyleContent = processedStyleContent.substr(0, styleTagContentIndex) +
-          processedStyle +
-          processedStyleContent.substr(styleTagContentEndIndex);
-    }
-    replacedTemplates.push(processedStyleContent);
+      css.walkAtRules((rule) => {
+        if (rule.name !== 'import' && typeof rule.params !== 'string') {
+          return;
+        }
+        const localRule = rule;
+        const values = Tokenizer.parseValues(rule.params);
+        values.nodes.forEach((value) => {
+          value.nodes.forEach(processNode);
+        });
+        localRule.params = Tokenizer.stringifyValues(values);
+      });
+    };
   }
-  return replacedTemplates;
+
+  /**
+   * Ensure that a path not starting with ```/```, ```./```, ```~``` or ```../``` gets ```./``` prepended.
+   * e.g.
+   * ```
+   * foo.js
+   * becomes:
+   * ./foo.js
+   * ```
+   * @param {string} path link href or script src
+   * @return {string} adjusted path
+   */
+  static adjustPathIfNeeded(path) {
+    if (/^~/.test(path)) {
+      return path.substr(1);
+    } else if (/^\.{0,2}\//.test(path)) {
+      return path;
+    }
+    return `./${path}`;
+  }
 }
 
-module.exports = async function entry(content, sourceMap) {
+ProcessHtml.postcssParserPlugin = postcss.plugin('polymer-webpack-loader-parser', ProcessHtml.postcssPlugin);
+
+// eslint-disable-next-line no-unused-vars
+export default function entry(content, map) {
   const callback = this.async();
-  // See if the contents contain any indicator that this might be a Polymer Element. If not, avoid parsing.
-  if (!polymerElementIndicatorExpr.test(content)) {
-    callback(null, content, sourceMap);
-    return;
-  }
+  const processedHtml = new ProcessHtml(content, this).process();
+  processedHtml
+    .then((results) => {
+      callback(null, results.source, results.sourceMap);
+    })
+    .catch(callback);
+}
 
-  const { ast, templateExpressions: polymerTemplateExpressions } = findHtmlTaggedTemplateLiterals(content);
-  if (!sourceMap && this.sourceMap) {
-    sourceMap = createIdentitySourceMap(content, ast, this.resourcePath); // eslint-disable-line no-param-reassign
-  }
-  const { placeholders: subExpressionPlaceholders, templates: simpleTemplateStrings } =
-      addPlaceholdersForSubExpressions(polymerTemplateExpressions);
-  const options = loaderUtils.getOptions(this) || {};
-  const htmlLoaderOptions = Object.assign({}, htmlLoaderDefaultOptions, options.htmlLoader || {});
-  if (htmlLoaderOptions.exportAsDefault) {
-    delete htmlLoaderOptions.exportAsDefault;
-  }
-  if (htmlLoaderOptions.exportAsEs6Default) {
-    delete htmlLoaderOptions.exportAsEs6Default;
-  }
-
-  const escapedTemplateStrings = simpleTemplateStrings.map(templateString => templateString.replace(/`/g, '\\`'));
-  const htmlMinifiedTemplates = minifyHtmlTaggedTemplateExpressions(escapedTemplateStrings, htmlLoaderOptions);
-  const styleProcessedTemplates = await updateUrlsInStyles(htmlMinifiedTemplates, this.resourcePath);
-
-  // eslint-disable-next-line prefer-const
-  let { source: newContent, sourceMap: newSourceMap } = await replacePlaceholdersWithOriginalExpressions(
-    content,
-    polymerTemplateExpressions,
-    styleProcessedTemplates,
-    subExpressionPlaceholders,
-    this.sourceMap ? sourceMap : undefined);
-
-  const addTemplateCreationFunction =
-    styleProcessedTemplates.find(templateExpression => templateExpression.indexOf(templateCreationFunctionName) >= 0);
-  if (addTemplateCreationFunction) {
-    newContent += `\nfunction ${templateCreationFunctionName}(a) {
-  const template = /** @type {!HTMLTemplateElement} */(document.createElement('template'));
-  template.content.appendChild(document.createTextNode(a));
-  return template;
-}\n`;
-  }
-  callback(null, newContent, newSourceMap);
-};

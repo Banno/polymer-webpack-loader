@@ -1,7 +1,3 @@
 {
-  "extends": "webpack",
-  "rules": {
-    "no-undefined": "off",
-    "no-continue": "off"
-  }
+  "extends": "webpack"
 }
