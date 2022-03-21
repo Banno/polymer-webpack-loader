@@ -14,7 +14,7 @@ import {
 } from 'dom5';
 import loaderUtils from 'loader-utils';
 import parse5 from 'parse5';
-import espree from 'espree';
+import { tokenize } from 'espree';
 import sourceMap from 'source-map';
 import htmlLoader from 'html-loader';
 import Tokenizer from 'css-selector-tokenizer';
@@ -265,9 +265,9 @@ class ProcessHtml {
       } else {
         const scriptContents = parse5.serialize(scriptNode);
         sourceMapGenerator = sourceMapGenerator || new sourceMap.SourceMapGenerator();
-        const tokens = espree.tokenize(scriptContents, {
+        const tokens = tokenize(scriptContents, {
           loc: true,
-          ecmaVersion: 2017,
+          ecmaVersion: 'latest',
           sourceType: 'module',
         });
 

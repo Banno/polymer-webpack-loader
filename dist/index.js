@@ -13,7 +13,7 @@ var _loaderUtils = _interopRequireDefault(require("loader-utils"));
 
 var _parse = _interopRequireDefault(require("parse5"));
 
-var _espree = _interopRequireDefault(require("espree"));
+var _espree = require("espree");
 
 var _sourceMap = _interopRequireDefault(require("source-map"));
 
@@ -266,6 +266,7 @@ var ProcessHtml = /*#__PURE__*/function () {
      * @param {Array<HTMLElement>} links
      * @return {string}
      */
+    // eslint-disable-next-line class-methods-use-this
 
   }, {
     key: "links",
@@ -314,15 +315,13 @@ var ProcessHtml = /*#__PURE__*/function () {
           var scriptContents = _parse.default.serialize(scriptNode);
 
           sourceMapGenerator = sourceMapGenerator || new _sourceMap.default.SourceMapGenerator();
-
-          var tokens = _espree.default.tokenize(scriptContents, {
+          var tokens = (0, _espree.tokenize)(scriptContents, {
             loc: true,
-            ecmaVersion: 2017,
+            ecmaVersion: 'latest',
             sourceType: 'module'
           }); // For script node content tokens, we need to offset the token position by the
           // line number of the script tag itself. And for the first line, offset the start
           // column to account for the <script> tag itself.
-
 
           var currentScriptLineOffset = scriptNode.childNodes[0].__location.line - 1; // eslint-disable-line no-underscore-dangle
 
