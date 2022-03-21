@@ -13,9 +13,8 @@ import {
   setTextContent,
 } from 'dom5';
 import loaderUtils from 'loader-utils';
-import { normalizeCondition } from 'webpack/lib/RuleSet';
 import parse5 from 'parse5';
-import espree from 'espree';
+import { tokenize } from 'espree';
 import sourceMap from 'source-map';
 import htmlLoader from 'html-loader';
 import Tokenizer from 'css-selector-tokenizer';
@@ -227,46 +226,18 @@ class ProcessHtml {
    * @param {Array<HTMLElement>} links
    * @return {string}
    */
+  // eslint-disable-next-line class-methods-use-this
   links(links) {
     let source = '';
-    // A function to test an href against options.ignoreLinks and options.ignoreLinksFromPartialMatches
-    let shouldIgnore;
-    let ignoreConditions = [];
-    if (this.options.ignoreLinks) {
-      ignoreConditions = ignoreConditions.concat(this.options.ignoreLinks);
-    }
-    if (this.options.ignoreLinksFromPartialMatches) {
-      const partials = this.options.ignoreLinksFromPartialMatches;
-      ignoreConditions = ignoreConditions.concat(resource =>
-        partials.some(partial => resource.indexOf(partial) > -1));
-    }
 
-    if (ignoreConditions.length > 0) {
-      shouldIgnore = normalizeCondition(ignoreConditions);
-    } else {
-      shouldIgnore = () => false;
-    }
-
-    // A function to test an href against options.ignorePathReWrite
-    let shouldRewrite;
-    if (this.options.ignorePathReWrite) {
-      shouldRewrite = normalizeCondition({ not: this.options.ignorePathReWrite });
-    } else {
-      shouldRewrite = () => true;
-    }
 
     links.forEach((linkNode) => {
       const href = getAttribute(linkNode, 'href');
-      if (!href || shouldIgnore(href)) {
+      if (!href) {
         return;
       }
 
-      let path;
-      if (shouldRewrite(href)) {
-        path = ProcessHtml.adjustPathIfNeeded(href);
-      } else {
-        path = href;
-      }
+      const path = ProcessHtml.adjustPathIfNeeded(href);
 
       source += `\nrequire('${path}');\n`;
     });
@@ -294,9 +265,9 @@ class ProcessHtml {
       } else {
         const scriptContents = parse5.serialize(scriptNode);
         sourceMapGenerator = sourceMapGenerator || new sourceMap.SourceMapGenerator();
-        const tokens = espree.tokenize(scriptContents, {
+        const tokens = tokenize(scriptContents, {
           loc: true,
-          ecmaVersion: 2017,
+          ecmaVersion: 'latest',
           sourceType: 'module',
         });
 

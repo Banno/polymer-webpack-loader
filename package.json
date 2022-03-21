@@ -14,7 +14,6 @@
     "lint-staged": "lint-staged",
     "prebuild": "npm run clean",
     "prepublish": "npm run build",
-    "release": "standard-version",
     "test:watch": "jest --watch",
     "test:coverage": "jest --collectCoverageFrom='src/**/*.js' --coverage",
     "travis:lint": "npm run lint",
@@ -32,43 +31,43 @@
   },
   "homepage": "https://github.com/webpack-contrib/polymer-webpack-loader#readme",
   "dependencies": {
-    "css-selector-tokenizer": "^0.7.0",
-    "dom5": "^2.3.0",
-    "espree": "^3.4.3",
+    "css-selector-tokenizer": "^0.8.0",
+    "dom5": "^3.0.1",
+    "espree": "^9.3.1",
     "html-loader": "^0.5.1",
     "loader-utils": "^1.1.0",
     "parse5": "^3.0.2",
     "parse5-utils": "^2.0.0",
-    "postcss": "^6.0.9",
-    "source-map": "^0.5.6"
+    "postcss": "^8.4.12",
+    "source-map": "^0.7.3"
   },
   "devDependencies": {
-    "@babel/cli": "^7.7.7",
-    "@babel/plugin-proposal-object-rest-spread": "^7.7.7",
+    "@babel/cli": "^7.17.6",
+    "@babel/plugin-proposal-object-rest-spread": "^7.17.3",
     "@babel/polyfill": "^7.7.0",
-    "@babel/preset-env": "^7.7.7",
-    "@webpack-contrib/defaults": "^6.3.0",
-    "babel-jest": "^24.9.0",
-    "cross-env": "^5.0.1",
-    "del-cli": "^1.1.0",
-    "eslint": "^4.2.0",
+    "@babel/preset-env": "^7.16.11",
+    "babel-jest": "^27.5.1",
+    "cross-env": "^7.0.3",
+    "del-cli": "^4.0.1",
+    "eslint": "^8.11.0",
     "eslint-config-webpack": "^1.2.5",
-    "eslint-plugin-import": "^2.7.0",
-    "jest": "^24.9.0",
-    "lint-staged": "^4.0.1",
+    "eslint-plugin-import": "^2.25.4",
+    "jest": "^27.5.1",
+    "lint-staged": "^12.3.7",
     "pre-commit": "^1.2.2",
-    "standard-version": "^7.0.1",
-    "webpack": "4.x"
+    "standard-version": "^9.3.2",
+    "webpack": "5.70.0"
   },
   "files": [
     "dist",
+    "src",
     "register-html-template.js"
   ],
   "engines": {
     "node": ">= 4.3 < 5.0.0 || >= 5.10"
   },
   "peerDependencies": {
-    "webpack": "^2.0.0 || ^3.0.0 || ^4.0.0"
+    "webpack": "^2.0.0 || ^3.0.0 || ^4.0.0 || ^5.0.0"
   },
   "pre-commit": "lint-staged",
   "lint-staged": {
