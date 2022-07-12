@@ -1,6 +1,6 @@
 {
   "name": "polymer-webpack-loader",
-  "version": "3.0.0",
+  "version": "3.1.0",
   "description": "WebPack Loader for Polymer Web Components",
   "main": "src/index.js",
   "scripts": {
