@@ -20,7 +20,7 @@
     "polymer-webpack-loader": "../",
     "webpack": "4.x",
     "webpack-cli": "3.x",
-    "webpack-dev-server": "3.x"
+    "webpack-dev-server": "5.x"
   },
   "resolutions": {
     "glob-parent": "^5.1.2",
